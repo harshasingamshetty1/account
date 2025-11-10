@@ -28,6 +28,7 @@ contract SolverMultisigSetupTest is BaseTest {
     // Regular bot key (for testing that it cannot call revoke)
     PassKey botKey;
     bytes32 botKeyHash;
+    bytes4 public constant INITIATE_ON_BEHALF_SELECTOR = 0x13d4a787;
 
     function setUp() public override {
         super.setUp();
@@ -284,6 +285,159 @@ contract SolverMultisigSetupTest is BaseTest {
         assertEq(retrievedKey.expiry, newKey.k.expiry, "Expiry mismatch");
 
         console.log("[OK] Multisig successfully authorized a new key!");
+    }
+
+    /// @notice Test that a restricted account can only call specific contract/function
+    function test_RestrictedAccountCanOnlyCallSpecificContractAndFunction() public {
+        console.log("\n=== Testing Restricted Account with Specific Permissions ===");
+
+        // Create a new account/key
+        PassKey memory restrictedKey = _randomPassKey();
+        restrictedKey.k.isSuperAdmin = false;
+        restrictedKey.k.expiry = uint40(block.timestamp + 30 days);
+
+        // Authorize the new key using the original EOA key
+        vm.prank(solver.eoa);
+        bytes32 restrictedKeyHash = solver.d.authorize(restrictedKey.k);
+        assertEq(restrictedKeyHash, restrictedKey.keyHash, "Restricted key hash mismatch");
+
+        // Verify the key was stored
+        IthacaAccount.Key memory verifyKey = solver.d.getKey(restrictedKeyHash);
+        assertEq(uint8(verifyKey.keyType), uint8(restrictedKey.k.keyType), "Key type mismatch");
+
+        console.log("Restricted KeyHash:", bytes32ToHex(restrictedKey.keyHash));
+        console.log("[OK] Restricted key authorized and verified");
+
+        // Define the allowed contract and function selector
+        address allowedContract = address(this);
+        bytes4 allowedFunctionSelector = this.targetFunction.selector;
+
+        // Set permissions: allow the restricted key to call targetFunction on this contract
+        _setCanExecute(restrictedKeyHash, allowedContract, allowedFunctionSelector, true);
+
+        console.log("Allowed Contract:", allowedContract);
+        console.log(
+            "Allowed Function Selector:",
+            bytes32ToHex(bytes32(uint256(uint32(allowedFunctionSelector)) << 224))
+        );
+        console.log("[OK] Permissions set: restricted key can call targetFunction on test contract");
+
+        // Verify the permission was set correctly
+        bool canExecute = solver.d.canExecute(
+            restrictedKeyHash,
+            allowedContract,
+            abi.encodeWithSelector(allowedFunctionSelector, "test")
+        );
+        assertTrue(canExecute, "Restricted key should be able to execute allowed function");
+
+        // Test 1: Verify the restricted key CAN call the allowed function
+        console.log("\n=== Test 1: Restricted key calls allowed function ===");
+        bytes memory testData = abi.encode("test data");
+        delete targetFunctionPayloads;
+
+        _executeCall(
+            restrictedKey,
+            restrictedKeyHash,
+            allowedContract,
+            abi.encodeWithSelector(allowedFunctionSelector, testData)
+        );
+
+        // Verify the call was executed
+        assertEq(targetFunctionPayloads.length, 1, "targetFunction should have been called");
+        assertEq(targetFunctionPayloads[0].by, solver.eoa, "Call should be from solver account");
+        assertEq(targetFunctionPayloads[0].data, testData, "Call data should match");
+
+        console.log("[OK] Restricted key successfully called allowed function!");
+
+        // Test 2: Verify the restricted key CANNOT call a different function on the same contract
+        console.log(
+            "\n=== Test 2: Restricted key tries to call different function (should fail) ==="
+        );
+        bytes4 differentFunctionSelector = bytes4(keccak256("differentFunction(bytes)"));
+        _testUnauthorizedCall(
+            restrictedKey,
+            restrictedKeyHash,
+            allowedContract,
+            abi.encodeWithSelector(differentFunctionSelector, testData)
+        );
+        console.log("[OK] Restricted key correctly blocked from calling different function");
+
+        // Test 3: Verify the restricted key CANNOT call the allowed function on a different contract
+        console.log(
+            "\n=== Test 3: Restricted key tries to call allowed function on different contract (should fail) ==="
+        );
+        address differentContract = makeAddr("DifferentContract");
+        _testUnauthorizedCall(
+            restrictedKey,
+            restrictedKeyHash,
+            differentContract,
+            abi.encodeWithSelector(allowedFunctionSelector, testData)
+        );
+        console.log(
+            "[OK] Restricted key correctly blocked from calling function on different contract"
+        );
+
+        // Test 4: Verify the restricted key CANNOT call a different function on a different contract
+        console.log(
+            "\n=== Test 4: Restricted key tries to call different function on different contract (should fail) ==="
+        );
+        _testUnauthorizedCall(
+            restrictedKey,
+            restrictedKeyHash,
+            differentContract,
+            abi.encodeWithSelector(differentFunctionSelector, testData)
+        );
+        console.log(
+            "[OK] Restricted key correctly blocked from calling different function on different contract"
+        );
+
+        console.log(
+            "\n=== SUCCESS! Restricted account can only call the specific contract/function ==="
+        );
+    }
+
+    /// @notice Helper to set canExecute permission
+    function _setCanExecute(bytes32 keyHash, address target, bytes4 fnSel, bool can) internal {
+        vm.prank(solver.eoa);
+        solver.d.setCanExecute(keyHash, target, fnSel, can);
+    }
+
+    /// @notice Helper to execute a call with a restricted key
+    function _executeCall(PassKey memory key, bytes32 keyHash, address target, bytes memory data)
+        internal
+    {
+        ERC7821.Call[] memory calls = new ERC7821.Call[](1);
+        calls[0] = ERC7821.Call({to: target, value: 0, data: data});
+
+        uint256 nonce = solver.d.getNonce(0);
+        bytes32 digest = solver.d.computeDigest(calls, nonce);
+        bytes memory signature = abi.encodePacked(_sig(key, digest), keyHash, uint8(0));
+
+        solver.d.execute(
+            _ERC7821_BATCH_EXECUTION_MODE, abi.encode(calls, abi.encodePacked(nonce, signature))
+        );
+    }
+
+    /// @notice Helper to test that an unauthorized call reverts
+    function _testUnauthorizedCall(
+        PassKey memory key,
+        bytes32 keyHash,
+        address target,
+        bytes memory data
+    ) internal {
+        ERC7821.Call[] memory calls = new ERC7821.Call[](1);
+        calls[0] = ERC7821.Call({to: target, value: 0, data: data});
+
+        uint256 nonce = solver.d.getNonce(0);
+        bytes32 digest = solver.d.computeDigest(calls, nonce);
+        bytes memory signature = abi.encodePacked(_sig(key, digest), keyHash, uint8(0));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GuardedExecutor.UnauthorizedCall.selector, keyHash, target, data)
+        );
+        solver.d.execute(
+            _ERC7821_BATCH_EXECUTION_MODE, abi.encode(calls, abi.encodePacked(nonce, signature))
+        );
     }
 
     /// @notice Helper to set up multisig (for reuse in tests)
