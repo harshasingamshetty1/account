@@ -25,6 +25,11 @@ contract TestTarget {
     }
 }
 
+interface IHTLC {
+    function initiate(address redeemer, uint256 timelock, uint256 amount, bytes32 secretHash)
+        external;
+}
+
 /// @title TestRestrictedAccount
 /// @notice Deploys and tests restricted account flow on Base Sepolia
 /// @dev This script:
@@ -44,6 +49,11 @@ contract TestRestrictedAccount is Script {
     IthacaAccount.Key public restrictedKey;
     bytes32 public restrictedKeyHash;
     uint256 public restrictedPrivateKey; // Store for signing
+
+    // Mainnet executor account
+    IthacaAccount.Key public mainnetExecutorKey;
+    bytes32 public mainnetExecutorKeyHash;
+    uint256 public mainnetExecutorPrivateKey;
 
     // Deployer account
     uint256 public deployerPrivateKey;
@@ -80,6 +90,8 @@ contract TestRestrictedAccount is Script {
 
         // Set values from previous runs
         restrictedPrivateKey = uint256(keccak256("RESTRICTED_KEY_V1"));
+        console.log("Restricted Private Key (hex):", restrictedPrivateKey);
+
         restrictedKeyHash = 0x3c05214ea15b85b7e48237aa72ff9fbf95b582eeba266365835bb2558366c5cd;
         allowedContract = 0x098Fd27df763E5361Da026412d1C8702AcB56c98;
         allowedFunctionSelector = bytes4(0x3c78f395);
@@ -109,16 +121,20 @@ contract TestRestrictedAccount is Script {
         // setupSolverDelegation();
 
         // Phase 3: Create and authorize restricted key
-        // createRestrictedKey();  // Already done - tx hash: 0xe194559c3379d8a70375006172a60d4e39f479d2d38f3c657bc8076f30d3c9e9
+        // createRestrictedKey(); // Already done - tx hash: 0xe194559c3379d8a70375006172a60d4e39f479d2d38f3c657bc8076f30d3c9e9
 
         // Phase 4: Set permissions
         // setPermissions();
 
         // // Phase 5: Test restricted account flow
-        testRestrictedAccount();
+        // testRestrictedAccount();
 
         // // Print summary
         // printSummary();
+
+        // Phase 6: Set HTLC permissions
+        // setHTLCPermissions();
+        testHTLCInteraction();
     }
 
     function deployContracts() internal {
@@ -252,6 +268,36 @@ contract TestRestrictedAccount is Script {
         console.log("[OK] Permissions set: restricted key can call targetFunction on test contract");
     }
 
+    function setHTLCPermissions() internal {
+        restrictedKeyHash = 0x3c05214ea15b85b7e48237aa72ff9fbf95b582eeba266365835bb2558366c5cd;
+        allowedContract = 0x917cfef972d667dC0FeC76806cB5623585B81493;
+        allowedFunctionSelector = bytes4(0x97ffc7ae);
+        console.log("\n========================================");
+        console.log("PHASE 4: Set Permissions");
+        console.log("========================================\n");
+
+        console.log("Setting permissions for restricted key:");
+        console.log("  Contract:", allowedContract);
+        console.log("  Function:", vm.toString(allowedFunctionSelector));
+
+        vm.startBroadcast(solverEOAPrivateKey);
+
+        IthacaAccount account = IthacaAccount(payable(solverEOA));
+        account.setCanExecute(restrictedKeyHash, allowedContract, allowedFunctionSelector, true);
+
+        // Verify permission was set
+        bool canExecute = account.canExecute(
+            restrictedKeyHash,
+            allowedContract,
+            abi.encodeWithSelector(allowedFunctionSelector, makeAddr("HTLC"), 100, 100, bytes32(0))
+        );
+        require(canExecute, "Permission not set correctly");
+
+        vm.stopBroadcast();
+
+        console.log("[OK] Permissions set: restricted key can call targetFunction on test contract");
+    }
+
     function testRestrictedAccount() internal {
         console.log("\n========================================");
         console.log("PHASE 5: Test Restricted Account Flow");
@@ -269,6 +315,23 @@ contract TestRestrictedAccount is Script {
         console.log("\n[OK] All tests passed!");
     }
 
+    function testHTLCInteraction() internal {
+        console.log("\n========================================");
+        console.log("PHASE 5: Test Restricted Account Flow");
+        console.log("========================================\n");
+
+        // Test allowed call (requires broadcast)
+        vm.startBroadcast(restrictedPrivateKey);
+        _testAllowedHTLCCall();
+        vm.stopBroadcast();
+
+        // Test unauthorized calls (simulation only - no broadcast needed)
+        // _testUnauthorizedFunction();
+        // _testUnauthorizedContract();
+
+        console.log("\n[OK] All tests passed!");
+    }
+
     function _testAllowedCall() internal {
         console.log("Test 1: Restricted key calls allowed function...");
         IthacaAccount account = IthacaAccount(payable(solverEOA));
@@ -282,6 +345,21 @@ contract TestRestrictedAccount is Script {
 
         require(target.callCount() == initialCallCount + 1, "Function was not called");
         console.log("[OK] Restricted key successfully called allowed function!");
+    }
+
+    function _testAllowedHTLCCall() internal {
+        console.log("Test 1: Restricted key calls allowed HTLC function...");
+        allowedContract = 0x917cfef972d667dC0FeC76806cB5623585B81493;
+        IthacaAccount account = IthacaAccount(payable(solverEOA));
+
+        // bytes memory testData =
+        //     abi.encode(makeAddr("HTLC"), 100, 100, keccak256(abi.encode("secret")));
+        bytes memory callData = abi.encodeWithSelector(
+            IHTLC.initiate.selector, makeAddr("HTLC"), 100, 100, keccak256(abi.encode("secret_1"))
+        );
+
+        _executeCall(account, allowedContract, callData);
+        console.log("[OK] Restricted key successfully called allowed HTLC function!");
     }
 
     function _testUnauthorizedFunction() internal {
