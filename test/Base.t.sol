@@ -15,7 +15,8 @@ import {GasBurnerLib} from "solady/utils/GasBurnerLib.sol";
 import {P256} from "solady/utils/P256.sol";
 import {LibSort} from "solady/utils/LibSort.sol";
 import {FixedPointMathLib as Math} from "solady/utils/FixedPointMathLib.sol";
-import {IthacaAccount, MockAccount} from "./utils/mocks/MockAccount.sol";
+import {MockAccount} from "./utils/mocks/MockAccount.sol";
+import {IthacaAccount} from "../src/IthacaAccount.sol";
 import {Orchestrator, MockOrchestrator} from "./utils/mocks/MockOrchestrator.sol";
 import {ERC20, MockPaymentToken} from "./utils/mocks/MockPaymentToken.sol";
 import {GuardedExecutor} from "../src/IthacaAccount.sol";
@@ -34,6 +35,8 @@ contract BaseTest is SoladyTest {
     EIP7702Proxy eip7702Proxy;
     TargetFunctionPayload[] targetFunctionPayloads;
     Simulator simulator;
+
+    PassKey secp256k1SuperAdminKey;
 
     struct TargetFunctionPayload {
         address by;
@@ -81,8 +84,8 @@ contract BaseTest is SoladyTest {
     function setUp() public virtual {
         oc = new MockOrchestrator();
         paymentToken = new MockPaymentToken();
-        IthacaAccount.Key memory key = _randomSecp256k1PassKey().k;
-        accountImplementation = address(new MockAccount(address(oc), key));
+        secp256k1SuperAdminKey = _randomSecp256k1PassKey();
+        accountImplementation = address(new MockAccount(address(oc), secp256k1SuperAdminKey.k));
         eip7702Proxy =
             EIP7702Proxy(payable(LibEIP7702.deployProxy(accountImplementation, address(this))));
         account = MockAccount(payable(eip7702Proxy));

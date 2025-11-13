@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "./utils/SoladyTest.sol";
-import {IthacaAccount} from "./utils/mocks/MockAccount.sol";
+import {IthacaAccount} from "../src/IthacaAccount.sol";
 import {GuardedExecutor} from "../src/IthacaAccount.sol";
 import {BaseTest} from "./Base.t.sol";
 import {EIP7702Proxy} from "solady/accounts/EIP7702Proxy.sol";
@@ -26,7 +26,7 @@ contract UpgradeTests is BaseTest {
     PassKey public p256Key;
     PassKey public p256SuperAdminKey;
     PassKey public secp256k1Key;
-    PassKey public secp256k1SuperAdminKey;
+    // PassKey public secp256k1SuperAdminKey;
     PassKey public webAuthnP256Key;
     PassKey public externalKey;
 

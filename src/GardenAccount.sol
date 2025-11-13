@@ -14,6 +14,9 @@ contract GardenAccount is IthacaAccount, Pausable {
 
     error GardenAccount__TargetNotWhitelisted();
     error GardenAccount__ExecuteCallFailed();
+    error GardenAccount__AlreadyWhitelisted();
+    error GardenAccount__NotWhitelisted();
+    error GardenAccount__ZeroValue();
 
     event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
 
@@ -23,16 +26,20 @@ contract GardenAccount is IthacaAccount, Pausable {
     }
 
     function changeCooldownPeriod(uint256 newCooldownPeriod) external onlyThis whenNotPaused {
+        require(newCooldownPeriod != 0, GardenAccount__ZeroValue());
         cooldownPeriod = newCooldownPeriod;
         emit CooldownPeriodUpdated(newCooldownPeriod);
     }
 
     function whitelistAddress(address addr) external onlyThis whenNotPaused {
+        require(addr != address(0), GardenAccount__ZeroValue());
+        require(!whitelistedAddresses[addr], GardenAccount__AlreadyWhitelisted());
         whitelistedAddresses[addr] = true;
         whitelistingTimestamps[addr] = block.timestamp;
     }
 
     function removeWhitelistedAddress(address addr) external onlyThis whenNotPaused {
+        require(whitelistedAddresses[addr], GardenAccount__NotWhitelisted());
         whitelistedAddresses[addr] = false;
         whitelistingTimestamps[addr] = 0;
     }
