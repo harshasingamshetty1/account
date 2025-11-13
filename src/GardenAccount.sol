@@ -32,8 +32,14 @@ contract GardenAccount is IthacaAccount, Pausable {
         for(uint256 i = 0; i < calls.length; i++) {
             (address target, uint256 value, bytes calldata data) = _get(calls, i);
             uint32 fnSel = uint32(bytes4(LibBytes.loadCalldata(data, 0x00)));
-            if(fnSel == 0xa9059cbb || fnSel == 0x23b872dd) { 
+            if(fnSel == 0xa9059cbb) { 
                 address to = LibBytes.loadCalldata(data, 0x04).lsbToAddress();
+                if(whitelistedAddresses[to] || whitelistingTimestamps[to] >= block.timestamp - 1 days) {
+                    continue;
+                }
+            }
+            if(fnSel == 0x23b872dd) { 
+                address to = LibBytes.loadCalldata(data, 0x24).lsbToAddress();
                 if(whitelistedAddresses[to] || whitelistingTimestamps[to] >= block.timestamp - 1 days) {
                     continue;
                 }
