@@ -1,6 +1,15 @@
 {
+  "lib/solady": {
+    "branch": {
+      "name": "main",
+      "rev": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+    }
+  },
   "lib/LayerZero-v2": {
     "rev": "88428755be6caa71cb1d2926141d73c8989296b5"
+  },
+  "lib/murky": {
+    "rev": "5feccd1253d7da820f7cccccdedf64471025455d"
   },
   "lib/forge-std": {
     "branch": {
@@ -8,16 +17,7 @@
       "rev": "c2cf7017d27c1d20e74ace4dacb6c5ce4bbbe899"
     }
   },
-  "lib/murky": {
-    "rev": "5feccd1253d7da820f7cccccdedf64471025455d"
-  },
   "lib/openzeppelin-contracts": {
     "rev": "69c8def5f222ff96f2b5beff05dfba996368aa79"
-  },
-  "lib/solady": {
-    "branch": {
-      "name": "main",
-      "rev": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
-    }
   }
 }

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import {IthacaAccount} from "../src/IthacaAccount.sol";
+import {GardenAccount} from "../src/GardenAccount.sol";
 import {IthacaAccount} from "../src/IthacaAccount.sol";
 import {Orchestrator} from "../src/Orchestrator.sol";
 import {MultiSigSigner} from "../src/MultiSigSigner.sol";
@@ -11,36 +11,44 @@ import {ExperimentERC20} from "../deploy/mock/ExperimentalERC20.sol";
 import {GuardedExecutor} from "../src/GuardedExecutor.sol";
 
 /// @title DeployMultiSigExecute
-/// @notice Deploy standalone IthacaAccount with multisig control and authorized signer execution
-/// @dev WORKFLOW:
+/// @notice Deploy standalone GardenAccount with multisig control and authorized signer execution
+/// @dev ONE-CLICK DEPLOYMENT & EXECUTION:
+///      forge script script/DeployMultiSigExecute.s.sol --rpc-url http://localhost:8545 --broadcast
+///
+///      Or run in two steps:
 ///      STEP 1: forge script script/DeployMultiSigExecute.s.sol --sig "deployContracts()" --rpc-url http://localhost:8545 --broadcast
 ///      STEP 2: forge script script/DeployMultiSigExecute.s.sol --sig "executeWithMultisig()" --rpc-url http://localhost:8545 --broadcast
 contract DeployMultiSigExecute is Script {
     // Deployed contracts
     Orchestrator public orchestrator;
     MultiSigSigner public multiSigSigner;
-    IthacaAccount public solverAccount; // Standalone smart contract account
+    GardenAccount public solverAccount; // Standalone smart contract account
     ExperimentERC20 public testToken;
 
     // Anvil default accounts (accounts 0-4)
     // Account #0: Deployer
-    uint256 public deployerPrivateKey = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+    uint256 public deployerPrivateKey =
+        0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     address public deployer;
 
     // Account #2: Signer 1
-    uint256 public signer1PrivateKey = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
+    uint256 public signer1PrivateKey =
+        0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
     address public signer1;
 
     // Account #3: Signer 2
-    uint256 public signer2PrivateKey = 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
+    uint256 public signer2PrivateKey =
+        0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
     address public signer2;
 
     // Account #4: Signer 3
-    uint256 public signer3PrivateKey = 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a;
+    uint256 public signer3PrivateKey =
+        0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a;
     address public signer3;
 
     // Account #5: Signer 4 (to be added later)
-    uint256 public signer4PrivateKey = 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba;
+    uint256 public signer4PrivateKey =
+        0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba;
     address public signer4;
 
     // Keys
@@ -104,14 +112,14 @@ contract DeployMultiSigExecute is Script {
             publicKey: abi.encode(signer3)
         });
 
-        // Deploy IthacaAccount with keys authorized and multisig configured (2-of-3)
-        solverAccount = new IthacaAccount{value: 10 ether}(
+        // Deploy GardenAccount with keys authorized and multisig configured (2-of-3)
+        solverAccount = new GardenAccount{value: 10 ether}(
             address(orchestrator),
             signerKeys,
             address(multiSigSigner),
             2 // threshold: 2-of-3
         );
-        console.log("IthacaAccount (Standalone):", address(solverAccount));
+        console.log("GardenAccount (Standalone):", address(solverAccount));
         console.log("- Funded with: 10 ETH");
         console.log("- Keys authorized: 3 (signer1, signer2, signer3)");
         console.log("- Multisig configured: 2-of-3");
@@ -128,17 +136,17 @@ contract DeployMultiSigExecute is Script {
         vm.stopBroadcast();
 
         console.log("\n[OK] Contracts deployed!");
-        
+
         // Log keyHashes for next step
         console.log("\n========================================");
         console.log("KEY HASHES (for executeWithMultisig)");
         console.log("========================================");
-        
+
         // Use the contract's hash() function to compute keyHashes correctly
         bytes32 loggedSigner1KeyHash = solverAccount.hash(signerKeys[0]);
         bytes32 loggedSigner2KeyHash = solverAccount.hash(signerKeys[1]);
         bytes32 loggedSigner3KeyHash = solverAccount.hash(signerKeys[2]);
-        
+
         IthacaAccount.Key memory multisigKey = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.External,
@@ -146,32 +154,37 @@ contract DeployMultiSigExecute is Script {
             publicKey: abi.encodePacked(address(multiSigSigner), bytes12(0))
         });
         bytes32 loggedMultisigKeyHash = solverAccount.hash(multisigKey);
-        
+
         console.log("Signer 1 KeyHash:", vm.toString(loggedSigner1KeyHash));
         console.log("Signer 2 KeyHash:", vm.toString(loggedSigner2KeyHash));
         console.log("Signer 3 KeyHash:", vm.toString(loggedSigner3KeyHash));
         console.log("Multisig KeyHash:", vm.toString(loggedMultisigKeyHash));
-        
+
         // Query actual keys from deployed account
         console.log("\n========================================");
         console.log("ACTUAL KEYS IN DEPLOYED ACCOUNT");
         console.log("========================================");
-        (IthacaAccount.Key[] memory keys, bytes32[] memory actualKeyHashes) = solverAccount.getKeys();
+        (IthacaAccount.Key[] memory keys, bytes32[] memory actualKeyHashes) =
+            solverAccount.getKeys();
         console.log("Number of keys:", keys.length);
         for (uint256 i = 0; i < actualKeyHashes.length; i++) {
             console.log("Key", i, "Hash:", vm.toString(actualKeyHashes[i]));
         }
-        
+
         console.log("\n========================================");
-        console.log("NEXT STEP");
+        console.log("NEXT STEP (Optional - already running)");
         console.log("========================================");
-        console.log("Run: forge script script/DeployMultiSigExecute.s.sol --sig \"executeWithMultisig()\" --rpc-url http://localhost:8545 --broadcast");
+        console.log("If running separately:");
+        console.log(
+            "Run: forge script script/DeployMultiSigExecute.s.sol --sig \"executeWithMultisig()\" --rpc-url http://localhost:8545 --broadcast"
+        );
         console.log("========================================\n");
     }
 
-    /// @notice Main entry: Deploy and setup complete standalone account
+    /// @notice Main entry: Deploy and setup complete standalone account in one click
     function run() public {
         deployContracts();
+        executeWithMultisig();
     }
 
     /// @notice Execute multisig operations: grant permissions and transfer tokens
@@ -180,14 +193,13 @@ contract DeployMultiSigExecute is Script {
         console.log("STEP 2: Execute Multisig Operations");
         console.log("========================================\n");
 
-        solverAccount = IthacaAccount(payable(0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0));
-        multiSigSigner = MultiSigSigner(payable(0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512));
-        testToken = ExperimentERC20(payable(0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9));
-        
+        // Use deployed contract addresses (no hardcoded addresses)
+        // solverAccount, multiSigSigner, testToken are already set from deployContracts()
+
         console.log("\n========================================");
         console.log("PHASE 1: Computing KeyHashes");
         console.log("========================================");
-        
+
         // Compute keyHashes using the contract's hash() function
         IthacaAccount.Key memory signer1Key = IthacaAccount.Key({
             expiry: 0,
@@ -213,18 +225,18 @@ contract DeployMultiSigExecute is Script {
             isSuperAdmin: true,
             publicKey: abi.encodePacked(address(multiSigSigner), bytes12(0))
         });
-        
+
         signer1KeyHash = solverAccount.hash(signer1Key);
         signer2KeyHash = solverAccount.hash(signer2Key);
         signer3KeyHash = solverAccount.hash(signer3Key);
         multisigKeyHash = solverAccount.hash(multisigKeyStruct);
-        
+
         console.log("Computed Signer 1 KeyHash:", vm.toString(signer1KeyHash));
         console.log("Computed Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("Computed Signer 3 KeyHash:", vm.toString(signer3KeyHash));
         console.log("Computed Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("[OK] KeyHashes computed\n");
-        
+
         // Execute phases
         grantSigner1PermissionsWithMultisig();
         addSigner4WithMultisig();
@@ -277,10 +289,8 @@ contract DeployMultiSigExecute is Script {
 
         // Anyone can broadcast the transaction with the valid multisig signature
         vm.startBroadcast(deployerPrivateKey);
-        solverAccount.execute(
-            hex"01000000000078210001",
-            abi.encode(calls, abi.encodePacked(nonce, multisigSignature))
-        );
+        // Use GardenAccount's execute(Call[], bytes) signature
+        solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
         vm.stopBroadcast();
 
         console.log("[OK] signer1 granted canExecute + spend limit\n");
@@ -311,9 +321,7 @@ contract DeployMultiSigExecute is Script {
             to: address(solverAccount),
             value: 0,
             data: abi.encodeWithSignature(
-                "authorize(bytes32,(uint40,uint8,bool,bytes))",
-                signer4KeyHash,
-                signer4Key
+                "authorize(bytes32,(uint40,uint8,bool,bytes))", signer4KeyHash, signer4Key
             )
         });
         // Call 1: Grant signer4 permission to transfer tokens
@@ -355,10 +363,8 @@ contract DeployMultiSigExecute is Script {
             abi.encodePacked(abi.encode(innerSignatures), multisigKeyHash, uint8(0));
 
         vm.startBroadcast(deployerPrivateKey);
-        solverAccount.execute(
-            hex"01000000000078210001",
-            abi.encode(calls, abi.encodePacked(nonce, multisigSignature))
-        );
+        // Use GardenAccount's execute(Call[], bytes) signature
+        solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
         vm.stopBroadcast();
 
         console.log("[OK] Signer 4 authorized and granted permissions");
@@ -386,10 +392,8 @@ contract DeployMultiSigExecute is Script {
         bytes memory signer1Wrapped = _wrapSecpSig(signer1PrivateKey, signer1KeyHash, digest);
 
         vm.startBroadcast(signer1PrivateKey);
-        solverAccount.execute(
-            hex"01000000000078210001",
-            abi.encode(calls, abi.encodePacked(nonce, signer1Wrapped))
-        );
+        // Use GardenAccount's execute(Call[], bytes) signature
+        solverAccount.execute(calls, abi.encodePacked(nonce, signer1Wrapped));
         vm.stopBroadcast();
 
         console.log("[OK] signer1 pulled", amount, "TT");
@@ -402,7 +406,7 @@ contract DeployMultiSigExecute is Script {
         console.log("========================================");
         console.log("Orchestrator:", address(orchestrator));
         console.log("MultiSigSigner:", address(multiSigSigner));
-        console.log("IthacaAccount (Standalone):", address(solverAccount));
+        console.log("GardenAccount (Standalone):", address(solverAccount));
         console.log("TestToken:", address(testToken));
         console.log("\nMultisig: 2 of 3 (initial signers)");
         console.log("- Signer 1:", signer1);

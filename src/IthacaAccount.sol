@@ -234,7 +234,7 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         uint256 threshold
     ) payable {
         ORCHESTRATOR = orchestrator;
-        
+
         // 1. Authorize individual keys
         bytes32[] memory keyHashes = new bytes32[](initialKeys.length);
         for (uint256 i = 0; i < initialKeys.length; i++) {
@@ -245,7 +245,7 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
             keyHashes[i] = _addKey(initialKeys[i]);
             emit Authorized(keyHashes[i], initialKeys[i]);
         }
-        
+
         // 2. Setup multisig if address provided
         if (multiSigSigner != address(0)) {
             // Create and authorize multisig super admin key
@@ -258,17 +258,12 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
             bytes32 multisigKeyHash = _addKey(multisigKey);
             emit Authorized(multisigKeyHash, multisigKey);
 
-            
-            
             // Initialize multisig config
             // Note: msg.sender in MultiSigSigner.initConfig will be address(this)
             // Config is stored under _configs[address(this)][multisigKeyHash]
             (bool success,) = multiSigSigner.call(
                 abi.encodeWithSignature(
-                    "initConfig(bytes32,uint256,bytes32[])",
-                    multisigKeyHash,
-                    threshold,
-                    keyHashes
+                    "initConfig(bytes32,uint256,bytes32[])", multisigKeyHash, threshold, keyHashes
                 )
             );
             require(success, "Multisig init failed");
@@ -323,8 +318,8 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
 
         (bool isValid, bytes32 keyHash) = unwrapAndValidateSignature(digest, signature);
         if (LibBit.and(keyHash != 0, isValid)) {
-            isValid = _isSuperAdmin(keyHash)
-                || _getKeyExtraStorage(keyHash).checkers.contains(msg.sender);
+            isValid =
+                _isSuperAdmin(keyHash) || _getKeyExtraStorage(keyHash).checkers.contains(msg.sender);
         }
         // `bytes4(keccak256("isValidSignature(bytes32,bytes)")) = 0x1626ba7e`.
         // We use `0xffffffff` for invalid, in convention with the reference implementation.
@@ -448,7 +443,12 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     }
 
     /// @dev Returns arrays of all (non-expired) authorized keys and their hashes.
-    function getKeys() public view virtual returns (Key[] memory keys, bytes32[] memory keyHashes) {
+    function getKeys()
+        public
+        view
+        virtual
+        returns (Key[] memory keys, bytes32[] memory keyHashes)
+    {
         uint256 totalCount = keyCount();
 
         keys = new Key[](totalCount);
@@ -622,8 +622,9 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         // `keccak256(abi.encode(key.keyType, keccak256(key.publicKey)))`.
         keyHash = hash(key);
         AccountStorage storage $ = _getAccountStorage();
-        $.keyStorage[keyHash]
-        .set(abi.encodePacked(key.publicKey, key.expiry, key.keyType, key.isSuperAdmin));
+        $.keyStorage[keyHash].set(
+            abi.encodePacked(key.publicKey, key.expiry, key.keyType, key.isSuperAdmin)
+        );
         $.keyHashes.add(keyHash);
     }
 
@@ -671,10 +672,12 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
             if or(shr(64, t), lt(encodedIntent.length, 0x20)) { revert(0x00, 0x00) }
         }
 
-        if (!LibBit.and(
+        if (
+            !LibBit.and(
                 msg.sender == ORCHESTRATOR,
                 LibBit.or(intent.eoa == address(this), intent.payer == address(this))
-            )) {
+            )
+        ) {
             revert Unauthorized();
         }
 

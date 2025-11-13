@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import {IthacaAccount} from "./IthacaAccount.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract GardenAccount is IthacaAccount, Pausable {
     using LibBytes for *;
@@ -14,6 +15,9 @@ contract GardenAccount is IthacaAccount, Pausable {
 
     error GardenAccount__TargetNotWhitelisted();
     error GardenAccount__ExecuteCallFailed();
+    error GardenAccount__AlreadyWhitelisted();
+    error GardenAccount__NotWhitelisted();
+    error GardenAccount__ZeroValue();
 
     event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
 
@@ -23,24 +27,25 @@ contract GardenAccount is IthacaAccount, Pausable {
         Key[] memory initialKeys,
         address multiSigSigner,
         uint256 threshold
-    ) 
-        payable
-        IthacaAccount(orchestrator, initialKeys, multiSigSigner, threshold) 
-    {
+    ) payable IthacaAccount(orchestrator, initialKeys, multiSigSigner, threshold) {
         cooldownPeriod = 1 days;
     }
 
     function changeCooldownPeriod(uint256 newCooldownPeriod) external onlyThis whenNotPaused {
+        require(newCooldownPeriod != 0, GardenAccount__ZeroValue());
         cooldownPeriod = newCooldownPeriod;
         emit CooldownPeriodUpdated(newCooldownPeriod);
     }
 
     function whitelistAddress(address addr) external onlyThis whenNotPaused {
+        require(addr != address(0), GardenAccount__ZeroValue());
+        require(!whitelistedAddresses[addr], GardenAccount__AlreadyWhitelisted());
         whitelistedAddresses[addr] = true;
         whitelistingTimestamps[addr] = block.timestamp;
     }
 
     function removeWhitelistedAddress(address addr) external onlyThis whenNotPaused {
+        require(whitelistedAddresses[addr], GardenAccount__NotWhitelisted());
         whitelistedAddresses[addr] = false;
         whitelistingTimestamps[addr] = 0;
     }
@@ -48,49 +53,33 @@ contract GardenAccount is IthacaAccount, Pausable {
     function execute(bytes32, bytes calldata) public payable virtual override {}
 
     function execute(Call[] calldata calls, bytes calldata opData) external whenNotPaused {
-        Call[] memory filteredCalls = new Call[](calls.length);
-        uint256 count = 0;
+        _execute(bytes32(0), opData, calls, opData); // @note the first two values are placeholders, dead values that are not used in _execute
+    }
 
-        for(uint256 i = 0; i < calls.length; i++) {
-            (address target, uint256 value, bytes calldata data) = _get(calls, i);
-            uint32 fnSel = uint32(bytes4(LibBytes.loadCalldata(data, 0x00)));
-            //transfer
-            if(fnSel == 0xa9059cbb) { 
-                address to = LibBytes.loadCalldata(data, 0x04).lsbToAddress();
-                if(!whitelistedAddresses[to] || whitelistingTimestamps[to] >= block.timestamp - cooldownPeriod) {
-                    continue;
-                }
-            }
-            //transferFrom
-            else if(fnSel == 0x23b872dd) { 
-                address to = LibBytes.loadCalldata(data, 0x24).lsbToAddress();
-                if((!whitelistedAddresses[to] || whitelistingTimestamps[to] >= block.timestamp - cooldownPeriod) && LibBytes.loadCalldata(data, 0x04).lsbToAddress() == address(this)) {
-                    continue;
-                }
-            }
-            else if(
-                (!whitelistedAddresses[target] || whitelistingTimestamps[target] >= block.timestamp - cooldownPeriod) && value != 0
-            ) {
-                continue;
-            }
-            filteredCalls[count] = calls[i];
-            count++;
+    function withdraw(address recipient, address token, uint256 amount) external onlyThis {
+        if (
+            !whitelistedAddresses[recipient]
+                || block.timestamp < whitelistingTimestamps[recipient] + cooldownPeriod
+        ) {
+            revert GardenAccount__TargetNotWhitelisted();
         }
 
-        Call[] memory finalCalls = new Call[](count);
-        for(uint256 j = 0; j < count; j++) {
-            finalCalls[j] = filteredCalls[j];
-        }
-
-        (bool success,) = address(this).call(
-            abi.encodeWithSelector(this.executeCall.selector, finalCalls, opData)
-        );
-        if (!success) {
-            revert GardenAccount__ExecuteCallFailed();
+        if (token == address(0)) {
+            (bool success,) = recipient.call{value: amount}("");
+            if (!success) {
+                revert GardenAccount__ExecuteCallFailed();
+            }
+            return;
+        } else {
+            IERC20(token).transfer(recipient, amount);
         }
     }
 
-    function executeCall(Call[] calldata calls, bytes calldata opData) external onlyThis {
-        _execute(bytes32(0), opData, calls, opData); // @note the first two values are placeholders, dead values that are not used in _execute
+    function pause() external onlyThis whenNotPaused {
+        _pause();
+    }
+
+    function unpause() external onlyThis whenPaused {
+        _unpause();
     }
 }

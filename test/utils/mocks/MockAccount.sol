@@ -13,8 +13,9 @@ contract MockAccount is IthacaAccount, Brutalizer {
 
     uint256 public x;
 
-    constructor(address orchestrator, Key memory key) payable 
-        IthacaAccount(orchestrator, _singleKeyArray(key), address(0), 0) 
+    constructor(address orchestrator, Key memory key)
+        payable
+        IthacaAccount(orchestrator, _singleKeyArray(key), address(0), 0)
     {}
 
     /// @dev Helper to create single-key array for constructor
