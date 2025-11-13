@@ -222,8 +222,10 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     // Constructor
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(address orchestrator) payable {
+    constructor(address orchestrator, Key memory key) payable {
         ORCHESTRATOR = orchestrator;
+        bytes32 keyHash = _addKey(key);
+        emit Authorized(keyHash, key);
     }
 
     ////////////////////////////////////////////////////////////////////////
