@@ -90,7 +90,9 @@ contract UpgradeTests is BaseTest {
 
         IthacaAccount.Key memory key = _randomSecp256k1PassKey().k;
 
-        newImplementation = address(new IthacaAccount(address(oc), key));
+        IthacaAccount.Key[] memory keys = new IthacaAccount.Key[](1);
+        keys[0] = key;
+        newImplementation = address(new IthacaAccount(address(oc), keys, address(0), 0));
 
         // Generate test keys
         p256Key = _randomSecp256r1PassKey();

@@ -18,8 +18,17 @@ contract GardenAccount is IthacaAccount, Pausable {
     event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
 
     // @note add cooldown period
-    constructor(address orchestrator, Key memory key) IthacaAccount(orchestrator, key) {
+    constructor(address orchestrator, Key memory key) 
+        IthacaAccount(orchestrator, _singleKeyArray(key), address(0), 0) 
+    {
         cooldownPeriod = 1 days;
+    }
+
+    /// @dev Helper to create single-key array for constructor
+    function _singleKeyArray(Key memory key) private pure returns (Key[] memory) {
+        Key[] memory keys = new Key[](1);
+        keys[0] = key;
+        return keys;
     }
 
     function changeCooldownPeriod(uint256 newCooldownPeriod) external onlyThis whenNotPaused {
