@@ -10,10 +10,22 @@ contract GardenAccount is IthacaAccount, Pausable {
 
     mapping(address => bool) public whitelistedAddresses;
     mapping(address => uint256) public whitelistingTimestamps;
+    uint256 public cooldownPeriod;
 
     error GardenAccount__TargetNotWhitelisted();
+    error GardenAccount__ExecuteCallFailed();
 
-    constructor(address orchestrator, Key memory key) IthacaAccount(orchestrator, key) {}
+    event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
+
+    // @note add cooldown period
+    constructor(address orchestrator, Key memory key) IthacaAccount(orchestrator, key) {
+        cooldownPeriod = 1 days;
+    }
+
+    function changeCooldownPeriod(uint256 newCooldownPeriod) external onlyThis whenNotPaused {
+        cooldownPeriod = newCooldownPeriod;
+        emit CooldownPeriodUpdated(newCooldownPeriod);
+    }
 
     function whitelistAddress(address addr) external onlyThis whenNotPaused {
         whitelistedAddresses[addr] = true;
@@ -34,20 +46,22 @@ contract GardenAccount is IthacaAccount, Pausable {
         for(uint256 i = 0; i < calls.length; i++) {
             (address target, uint256 value, bytes calldata data) = _get(calls, i);
             uint32 fnSel = uint32(bytes4(LibBytes.loadCalldata(data, 0x00)));
+            //transfer
             if(fnSel == 0xa9059cbb) { 
                 address to = LibBytes.loadCalldata(data, 0x04).lsbToAddress();
-                if(whitelistedAddresses[to] || whitelistingTimestamps[to] >= block.timestamp - 1 days) {
+                if(!whitelistedAddresses[to] || whitelistingTimestamps[to] >= block.timestamp - cooldownPeriod) {
                     continue;
                 }
             }
-            if(fnSel == 0x23b872dd) { 
+            //transferFrom
+            else if(fnSel == 0x23b872dd) { 
                 address to = LibBytes.loadCalldata(data, 0x24).lsbToAddress();
-                if(whitelistedAddresses[to] || whitelistingTimestamps[to] >= block.timestamp - 1 days) {
+                if((!whitelistedAddresses[to] || whitelistingTimestamps[to] >= block.timestamp - cooldownPeriod) && LibBytes.loadCalldata(data, 0x04).lsbToAddress() == address(this)) {
                     continue;
                 }
             }
-            if(
-                (whitelistedAddresses[target] || whitelistingTimestamps[target] >= block.timestamp - 1 days) && value != 0
+            else if(
+                (!whitelistedAddresses[target] || whitelistingTimestamps[target] >= block.timestamp - cooldownPeriod) && value != 0
             ) {
                 continue;
             }
@@ -60,9 +74,12 @@ contract GardenAccount is IthacaAccount, Pausable {
             finalCalls[j] = filteredCalls[j];
         }
 
-        address(this).call(
+        (bool success,) = address(this).call(
             abi.encodeWithSelector(this.executeCall.selector, finalCalls, opData)
         );
+        if (!success) {
+            revert GardenAccount__ExecuteCallFailed();
+        }
     }
 
     function executeCall(Call[] calldata calls, bytes calldata opData) external onlyThis {
