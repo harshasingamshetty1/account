@@ -6,6 +6,7 @@ import {GardenAccount} from "../src/GardenAccount.sol";
 import {IthacaAccount} from "../src/IthacaAccount.sol";
 import {ERC7821} from "solady/accounts/ERC7821.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
+import {MockPaymentToken} from "./utils/mocks/MockPaymentToken.sol";
 
 contract GardenAccountTest is BaseTest {
     using LibBytes for *;
@@ -16,8 +17,11 @@ contract GardenAccountTest is BaseTest {
     address testAddress1;
     address testAddress2;
 
+    MockPaymentToken erc20Token;
+
     function setUp() public override {
         super.setUp();
+        erc20Token = new MockPaymentToken();
 
         // Deploy GardenAccount with super admin key
         adminKey = _randomSecp256k1PassKey();
@@ -31,7 +35,8 @@ contract GardenAccountTest is BaseTest {
 
         // Authorize the non-super admin key through execute (using adminKey signature)
         ERC7821.Call[] memory authCalls = new ERC7821.Call[](1);
-        authCalls[0].data = abi.encodeWithSelector(IthacaAccount.authorize.selector, nonSuperAdminKey.k);
+        authCalls[0].data =
+            abi.encodeWithSelector(IthacaAccount.authorize.selector, nonSuperAdminKey.k);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(authCalls, nonce));
@@ -53,16 +58,20 @@ contract GardenAccountTest is BaseTest {
         // Get the admin key from the account
         bytes32 adminKeyHash = _hash(adminKey.k);
         IthacaAccount.Key memory retrievedKey = gardenAccount.getKey(adminKeyHash);
-        
+
         assertTrue(retrievedKey.isSuperAdmin, "Admin key should be marked as super admin");
         assertEq(uint8(retrievedKey.keyType), uint8(adminKey.k.keyType), "Key type should match");
-        assertEq(keccak256(retrievedKey.publicKey), keccak256(adminKey.k.publicKey), "Public key should match");
+        assertEq(
+            keccak256(retrievedKey.publicKey),
+            keccak256(adminKey.k.publicKey),
+            "Public key should match"
+        );
     }
 
     function testNonSuperAdminKeyIsNotSuperAdmin() public {
         bytes32 nonAdminKeyHash = nonSuperAdminKey.keyHash;
         IthacaAccount.Key memory retrievedKey = gardenAccount.getKey(nonAdminKeyHash);
-        
+
         assert(!retrievedKey.isSuperAdmin);
     }
 
@@ -70,10 +79,8 @@ contract GardenAccountTest is BaseTest {
 
     function testSuperAdminCanWhitelistAddress() public {
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            testAddress1
-        );
+        calls[0].data =
+            abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, testAddress1);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(calls, nonce));
@@ -82,17 +89,21 @@ contract GardenAccountTest is BaseTest {
 
         gardenAccount.execute(calls, opData);
 
-        assertTrue(gardenAccount.whitelistedAddresses(testAddress1), "Address should be whitelisted");
-        assertEq(gardenAccount.whitelistingTimestamps(testAddress1), block.timestamp, "Timestamp should be set");
+        assertTrue(
+            gardenAccount.whitelistedAddresses(testAddress1), "Address should be whitelisted"
+        );
+        assertEq(
+            gardenAccount.whitelistingTimestamps(testAddress1),
+            block.timestamp,
+            "Timestamp should be set"
+        );
     }
 
     function testSuperAdminCanRemoveWhitelistedAddress() public {
         // First whitelist the address
         ERC7821.Call[] memory whitelistCalls = new ERC7821.Call[](1);
-        whitelistCalls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            testAddress1
-        );
+        whitelistCalls[0].data =
+            abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, testAddress1);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(whitelistCalls, nonce));
@@ -103,10 +114,8 @@ contract GardenAccountTest is BaseTest {
 
         // Now remove the whitelisted address
         ERC7821.Call[] memory removeCalls = new ERC7821.Call[](1);
-        removeCalls[0].data = abi.encodeWithSelector(
-            GardenAccount.removeWhitelistedAddress.selector,
-            testAddress1
-        );
+        removeCalls[0].data =
+            abi.encodeWithSelector(GardenAccount.removeWhitelistedAddress.selector, testAddress1);
 
         nonce = gardenAccount.getNonce(0);
         signature = _sig(adminKey, gardenAccount.computeDigest(removeCalls, nonce));
@@ -123,10 +132,8 @@ contract GardenAccountTest is BaseTest {
         uint256 newCooldownPeriod = 7 days;
 
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.changeCooldownPeriod.selector,
-            newCooldownPeriod
-        );
+        calls[0].data =
+            abi.encodeWithSelector(GardenAccount.changeCooldownPeriod.selector, newCooldownPeriod);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(calls, nonce));
@@ -135,19 +142,17 @@ contract GardenAccountTest is BaseTest {
 
         gardenAccount.execute(calls, opData);
 
-        assertEq(gardenAccount.cooldownPeriod(), newCooldownPeriod, "Cooldown period should be updated");
+        assertEq(
+            gardenAccount.cooldownPeriod(), newCooldownPeriod, "Cooldown period should be updated"
+        );
     }
 
     function testSuperAdminCanWhitelistMultipleAddresses() public {
         ERC7821.Call[] memory calls = new ERC7821.Call[](2);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            testAddress1
-        );
-        calls[1].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            testAddress2
-        );
+        calls[0].data =
+            abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, testAddress1);
+        calls[1].data =
+            abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, testAddress2);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(calls, nonce));
@@ -156,22 +161,22 @@ contract GardenAccountTest is BaseTest {
 
         gardenAccount.execute(calls, opData);
 
-        assertTrue(gardenAccount.whitelistedAddresses(testAddress1), "Address1 should be whitelisted");
-        assertTrue(gardenAccount.whitelistedAddresses(testAddress2), "Address2 should be whitelisted");
+        assertTrue(
+            gardenAccount.whitelistedAddresses(testAddress1), "Address1 should be whitelisted"
+        );
+        assertTrue(
+            gardenAccount.whitelistedAddresses(testAddress2), "Address2 should be whitelisted"
+        );
     }
 
     function testSuperAdminCanCombineWhitelistAndCooldownChanges() public {
         uint256 newCooldownPeriod = 3 days;
 
         ERC7821.Call[] memory calls = new ERC7821.Call[](2);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            testAddress1
-        );
-        calls[1].data = abi.encodeWithSelector(
-            GardenAccount.changeCooldownPeriod.selector,
-            newCooldownPeriod
-        );
+        calls[0].data =
+            abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, testAddress1);
+        calls[1].data =
+            abi.encodeWithSelector(GardenAccount.changeCooldownPeriod.selector, newCooldownPeriod);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(calls, nonce));
@@ -180,18 +185,20 @@ contract GardenAccountTest is BaseTest {
 
         gardenAccount.execute(calls, opData);
 
-        assertTrue(gardenAccount.whitelistedAddresses(testAddress1), "Address should be whitelisted");
-        assertEq(gardenAccount.cooldownPeriod(), newCooldownPeriod, "Cooldown period should be updated");
+        assertTrue(
+            gardenAccount.whitelistedAddresses(testAddress1), "Address should be whitelisted"
+        );
+        assertEq(
+            gardenAccount.cooldownPeriod(), newCooldownPeriod, "Cooldown period should be updated"
+        );
     }
 
     // ============ Non-Super Admin Revert Cases ============
 
     function testNonSuperAdminCannotWhitelistAddress() public {
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            testAddress1
-        );
+        calls[0].data =
+            abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, testAddress1);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(nonSuperAdminKey, gardenAccount.computeDigest(calls, nonce));
@@ -201,16 +208,16 @@ contract GardenAccountTest is BaseTest {
         vm.expectRevert();
         gardenAccount.execute(calls, opData);
 
-        assertFalse(gardenAccount.whitelistedAddresses(testAddress1), "Address should not be whitelisted");
+        assertFalse(
+            gardenAccount.whitelistedAddresses(testAddress1), "Address should not be whitelisted"
+        );
     }
 
     function testNonSuperAdminCannotRemoveWhitelistedAddress() public {
         // First, super admin whitelists the address
         ERC7821.Call[] memory whitelistCalls = new ERC7821.Call[](1);
-        whitelistCalls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            testAddress1
-        );
+        whitelistCalls[0].data =
+            abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, testAddress1);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(whitelistCalls, nonce));
@@ -221,10 +228,8 @@ contract GardenAccountTest is BaseTest {
 
         // Now non-super admin tries to remove it
         ERC7821.Call[] memory removeCalls = new ERC7821.Call[](1);
-        removeCalls[0].data = abi.encodeWithSelector(
-            GardenAccount.removeWhitelistedAddress.selector,
-            testAddress1
-        );
+        removeCalls[0].data =
+            abi.encodeWithSelector(GardenAccount.removeWhitelistedAddress.selector, testAddress1);
 
         nonce = gardenAccount.getNonce(0);
         signature = _sig(nonSuperAdminKey, gardenAccount.computeDigest(removeCalls, nonce));
@@ -234,7 +239,9 @@ contract GardenAccountTest is BaseTest {
         vm.expectRevert();
         gardenAccount.execute(removeCalls, opData);
 
-        assertTrue(gardenAccount.whitelistedAddresses(testAddress1), "Address should still be whitelisted");
+        assertTrue(
+            gardenAccount.whitelistedAddresses(testAddress1), "Address should still be whitelisted"
+        );
     }
 
     function testNonSuperAdminCannotChangeCooldownPeriod() public {
@@ -242,10 +249,8 @@ contract GardenAccountTest is BaseTest {
         uint256 newCooldownPeriod = 7 days;
 
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.changeCooldownPeriod.selector,
-            newCooldownPeriod
-        );
+        calls[0].data =
+            abi.encodeWithSelector(GardenAccount.changeCooldownPeriod.selector, newCooldownPeriod);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(nonSuperAdminKey, gardenAccount.computeDigest(calls, nonce));
@@ -255,7 +260,11 @@ contract GardenAccountTest is BaseTest {
         vm.expectRevert();
         gardenAccount.execute(calls, opData);
 
-        assertEq(gardenAccount.cooldownPeriod(), originalCooldownPeriod, "Cooldown period should not change");
+        assertEq(
+            gardenAccount.cooldownPeriod(),
+            originalCooldownPeriod,
+            "Cooldown period should not change"
+        );
     }
 
     function testUnauthorizedKeyCannotWhitelistAddress() public {
@@ -263,10 +272,8 @@ contract GardenAccountTest is BaseTest {
         unauthorizedKey.k.isSuperAdmin = false;
 
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            testAddress1
-        );
+        calls[0].data =
+            abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, testAddress1);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(unauthorizedKey, gardenAccount.computeDigest(calls, nonce));
@@ -276,7 +283,9 @@ contract GardenAccountTest is BaseTest {
         vm.expectRevert();
         gardenAccount.execute(calls, opData);
 
-        assertFalse(gardenAccount.whitelistedAddresses(testAddress1), "Address should not be whitelisted");
+        assertFalse(
+            gardenAccount.whitelistedAddresses(testAddress1), "Address should not be whitelisted"
+        );
     }
 
     function testDirectCallToWhitelistAddressReverts() public {
@@ -303,7 +312,7 @@ contract GardenAccountTest is BaseTest {
     function testExternalAddressCannotWhitelistAddress() public {
         address externalAddress = _randomUniqueHashedAddress();
         vm.deal(externalAddress, 1 ether);
-        
+
         vm.prank(externalAddress);
         vm.expectRevert();
         gardenAccount.whitelistAddress(testAddress1);
@@ -312,7 +321,7 @@ contract GardenAccountTest is BaseTest {
     function testExternalAddressCannotChangeCooldownPeriod() public {
         address externalAddress = _randomUniqueHashedAddress();
         vm.deal(externalAddress, 1 ether);
-        
+
         vm.prank(externalAddress);
         vm.expectRevert();
         gardenAccount.changeCooldownPeriod(7 days);
@@ -323,10 +332,7 @@ contract GardenAccountTest is BaseTest {
     function testFuzzSuperAdminCanWhitelistAnyAddress(address addr) public {
         vm.assume(addr != address(0));
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            addr
-        );
+        calls[0].data = abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, addr);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(calls, nonce));
@@ -343,10 +349,8 @@ contract GardenAccountTest is BaseTest {
         newCooldown = bound(newCooldown, 1, 365 days);
 
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.changeCooldownPeriod.selector,
-            newCooldown
-        );
+        calls[0].data =
+            abi.encodeWithSelector(GardenAccount.changeCooldownPeriod.selector, newCooldown);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(calls, nonce));
@@ -368,17 +372,15 @@ contract GardenAccountTest is BaseTest {
         authCalls[0].data = abi.encodeWithSelector(IthacaAccount.authorize.selector, randomKey.k);
 
         uint256 authNonce = gardenAccount.getNonce(0);
-        bytes memory authSignature = _sig(adminKey, gardenAccount.computeDigest(authCalls, authNonce));
+        bytes memory authSignature =
+            _sig(adminKey, gardenAccount.computeDigest(authCalls, authNonce));
         bytes memory authOpData = abi.encodePacked(authNonce, authSignature);
         bytes memory authExecutionData = abi.encode(authCalls, authOpData);
 
         gardenAccount.execute(authCalls, authOpData);
 
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0].data = abi.encodeWithSelector(
-            GardenAccount.whitelistAddress.selector,
-            addr
-        );
+        calls[0].data = abi.encodeWithSelector(GardenAccount.whitelistAddress.selector, addr);
 
         uint256 nonce = gardenAccount.getNonce(0);
         bytes memory signature = _sig(randomKey, gardenAccount.computeDigest(calls, nonce));
