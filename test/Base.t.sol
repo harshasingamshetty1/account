@@ -81,7 +81,8 @@ contract BaseTest is SoladyTest {
     function setUp() public virtual {
         oc = new MockOrchestrator();
         paymentToken = new MockPaymentToken();
-        accountImplementation = address(new MockAccount(address(oc)));
+        IthacaAccount.Key memory key = _randomSecp256k1PassKey().k;
+        accountImplementation = address(new MockAccount(address(oc), key));
         eip7702Proxy =
             EIP7702Proxy(payable(LibEIP7702.deployProxy(accountImplementation, address(this))));
         account = MockAccount(payable(eip7702Proxy));

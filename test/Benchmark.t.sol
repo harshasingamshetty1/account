@@ -100,9 +100,11 @@ contract BenchmarkTest is BaseTest {
 
         _etchContracts();
 
+        IthacaAccount.Key memory key = _randomSecp256k1PassKey().k;
+
         // re-setup the EIP7702Proxy to have no admin, like in production, for efficiency.
         eip7702Proxy = EIP7702Proxy(
-            payable(LibEIP7702.deployProxy(address(new MockAccount(address(oc))), address(0)))
+            payable(LibEIP7702.deployProxy(address(new MockAccount(address(oc), key)), address(0)))
         );
         account = MockAccount(payable(eip7702Proxy));
 

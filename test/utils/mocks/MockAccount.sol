@@ -13,7 +13,7 @@ contract MockAccount is IthacaAccount, Brutalizer {
 
     uint256 public x;
 
-    constructor(address orchestrator) payable IthacaAccount(orchestrator) {}
+    constructor(address orchestrator, Key memory key) payable IthacaAccount(orchestrator, key) {}
 
     function setX(uint256 newX) public onlyThis {
         x = newX;
