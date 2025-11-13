@@ -6,6 +6,8 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
 
 contract GardenAccount is IthacaAccount, Pausable {
+    using LibBytes for *;
+
     mapping(address => bool) public whitelistedAddresses;
     mapping(address => uint256) public whitelistingTimestamps;
 
