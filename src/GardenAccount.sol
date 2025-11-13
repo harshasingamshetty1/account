@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import {IthacaAccount} from "./IthacaAccount.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract GardenAccount is IthacaAccount, Pausable {
     using LibBytes for *;
@@ -50,18 +51,30 @@ contract GardenAccount is IthacaAccount, Pausable {
         _execute(bytes32(0), opData, calls, opData); // @note the first two values are placeholders, dead values that are not used in _execute
     }
 
+    function withdraw(address recipient, address token, uint256 amount) external onlyThis {
+        if (
+            !whitelistedAddresses[recipient]
+                || block.timestamp < whitelistingTimestamps[recipient] + cooldownPeriod
+        ) {
+            revert GardenAccount__TargetNotWhitelisted();
+        }
+
+        if (token == address(0)) {
+            (bool success,) = recipient.call{value: amount}("");
+            if (!success) {
+                revert GardenAccount__ExecuteCallFailed();
+            }
+            return;
+        } else {
+            IERC20(token).transfer(recipient, amount);
+        }
+    }
+
     function pause() external onlyThis whenNotPaused {
         _pause();
     }
 
     function unpause() external onlyThis whenPaused {
         _unpause();
-    }
-
-    // @audit make changes here
-    function _requireNotPaused() internal view virtual override {
-        if (paused() && _isSuperAdmin()) {
-            revert EnforcedPause();
-        }
     }
 }
