@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import {GardenAccount} from "../src/GardenAccount.sol";
+import {IthacaAccount} from "../src/IthacaAccount.sol";
 import {IthacaAccount} from "../src/IthacaAccount.sol";
 import {Orchestrator} from "../src/Orchestrator.sol";
 import {MultiSigSigner} from "../src/MultiSigSigner.sol";
@@ -10,16 +10,16 @@ import {ERC7821} from "solady/accounts/ERC7821.sol";
 import {ExperimentERC20} from "../deploy/mock/ExperimentalERC20.sol";
 import {GuardedExecutor} from "../src/GuardedExecutor.sol";
 
-/// @title DeployTestExecute
-/// @notice Deploy standalone GardenAccount with multisig control and authorized signer execution
+/// @title DeployMultiSigExecute
+/// @notice Deploy standalone IthacaAccount with multisig control and authorized signer execution
 /// @dev WORKFLOW:
-///      STEP 1: forge script script/DeployTestExecute.s.sol --sig "deployContracts()" --rpc-url http://localhost:8545 --broadcast
-///      STEP 2: forge script script/DeployTestExecute.s.sol --sig "executeWithMultisig()" --rpc-url http://localhost:8545 --broadcast
-contract DeployTestExecute is Script {
+///      STEP 1: forge script script/DeployMultiSigExecute.s.sol --sig "deployContracts()" --rpc-url http://localhost:8545 --broadcast
+///      STEP 2: forge script script/DeployMultiSigExecute.s.sol --sig "executeWithMultisig()" --rpc-url http://localhost:8545 --broadcast
+contract DeployMultiSigExecute is Script {
     // Deployed contracts
     Orchestrator public orchestrator;
     MultiSigSigner public multiSigSigner;
-    GardenAccount public solverAccount; // Standalone smart contract account
+    IthacaAccount public solverAccount; // Standalone smart contract account
     ExperimentERC20 public testToken;
 
     // Anvil default accounts (accounts 0-4)
@@ -39,10 +39,15 @@ contract DeployTestExecute is Script {
     uint256 public signer3PrivateKey = 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a;
     address public signer3;
 
+    // Account #5: Signer 4 (to be added later)
+    uint256 public signer4PrivateKey = 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba;
+    address public signer4;
+
     // Keys
     bytes32 public signer1KeyHash;
     bytes32 public signer2KeyHash;
     bytes32 public signer3KeyHash;
+    bytes32 public signer4KeyHash;
     bytes32 public multisigKeyHash;
 
     function setUp() public {
@@ -51,6 +56,7 @@ contract DeployTestExecute is Script {
         signer1 = vm.addr(signer1PrivateKey);
         signer2 = vm.addr(signer2PrivateKey);
         signer3 = vm.addr(signer3PrivateKey);
+        signer4 = vm.addr(signer4PrivateKey);
 
         console.log("\n========================================");
         console.log("ANVIL DEFAULT ACCOUNTS");
@@ -59,6 +65,7 @@ contract DeployTestExecute is Script {
         console.log("Signer 1 (Account #2):", signer1);
         console.log("Signer 2 (Account #3):", signer2);
         console.log("Signer 3 (Account #4):", signer3);
+        console.log("Signer 4 (Account #5):", signer4);
         console.log("========================================\n");
     }
 
@@ -97,14 +104,14 @@ contract DeployTestExecute is Script {
             publicKey: abi.encode(signer3)
         });
 
-        // Deploy GardenAccount with keys authorized and multisig configured (2-of-3)
-        solverAccount = new GardenAccount{value: 10 ether}(
+        // Deploy IthacaAccount with keys authorized and multisig configured (2-of-3)
+        solverAccount = new IthacaAccount{value: 10 ether}(
             address(orchestrator),
             signerKeys,
             address(multiSigSigner),
             2 // threshold: 2-of-3
         );
-        console.log("GardenAccount (Standalone):", address(solverAccount));
+        console.log("IthacaAccount (Standalone):", address(solverAccount));
         console.log("- Funded with: 10 ETH");
         console.log("- Keys authorized: 3 (signer1, signer2, signer3)");
         console.log("- Multisig configured: 2-of-3");
@@ -158,7 +165,7 @@ contract DeployTestExecute is Script {
         console.log("\n========================================");
         console.log("NEXT STEP");
         console.log("========================================");
-        console.log("Run: forge script script/DeployTestExecute.s.sol --sig \"executeWithMultisig()\" --rpc-url http://localhost:8545 --broadcast");
+        console.log("Run: forge script script/DeployMultiSigExecute.s.sol --sig \"executeWithMultisig()\" --rpc-url http://localhost:8545 --broadcast");
         console.log("========================================\n");
     }
 
@@ -173,7 +180,7 @@ contract DeployTestExecute is Script {
         console.log("STEP 2: Execute Multisig Operations");
         console.log("========================================\n");
 
-        solverAccount = GardenAccount(payable(0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0));
+        solverAccount = IthacaAccount(payable(0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0));
         multiSigSigner = MultiSigSigner(payable(0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512));
         testToken = ExperimentERC20(payable(0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9));
         
@@ -220,13 +227,13 @@ contract DeployTestExecute is Script {
         
         // Execute phases
         grantSigner1PermissionsWithMultisig();
-        signer1TransfersTokens();
+        addSigner4WithMultisig();
         printSummary();
     }
 
     function grantSigner1PermissionsWithMultisig() internal {
         console.log("\n========================================");
-        console.log("PHASE 4: Grant signer1 Permissions (Multisig)");
+        console.log("PHASE 2: Grant signer1 Permissions (Multisig)");
         console.log("========================================\n");
 
         bytes4 transferSel = bytes4(keccak256("transfer(address,uint256)"));
@@ -279,6 +286,86 @@ contract DeployTestExecute is Script {
         console.log("[OK] signer1 granted canExecute + spend limit\n");
     }
 
+    function addSigner4WithMultisig() internal {
+        console.log("\n========================================");
+        console.log("PHASE 3: Add Signer 4 via Multisig");
+        console.log("========================================\n");
+
+        // Create Key struct for signer4
+        IthacaAccount.Key memory signer4Key = IthacaAccount.Key({
+            expiry: 0,
+            keyType: IthacaAccount.KeyType.Secp256k1,
+            isSuperAdmin: false,
+            publicKey: abi.encode(signer4)
+        });
+
+        // Compute signer4 keyHash
+        signer4KeyHash = solverAccount.hash(signer4Key);
+
+        // Grant signer4 some permissions as well
+        bytes4 transferSel = bytes4(keccak256("transfer(address,uint256)"));
+
+        ERC7821.Call[] memory calls = new ERC7821.Call[](3);
+        // Call 0: Authorize signer4 key
+        calls[0] = ERC7821.Call({
+            to: address(solverAccount),
+            value: 0,
+            data: abi.encodeWithSignature(
+                "authorize(bytes32,(uint40,uint8,bool,bytes))",
+                signer4KeyHash,
+                signer4Key
+            )
+        });
+        // Call 1: Grant signer4 permission to transfer tokens
+        calls[1] = ERC7821.Call({
+            to: address(solverAccount),
+            value: 0,
+            data: abi.encodeWithSelector(
+                GuardedExecutor.setCanExecute.selector,
+                signer4KeyHash,
+                address(testToken),
+                transferSel,
+                true
+            )
+        });
+        // Call 2: Set spend limit for signer4
+        calls[2] = ERC7821.Call({
+            to: address(solverAccount),
+            value: 0,
+            data: abi.encodeWithSelector(
+                GuardedExecutor.setSpendLimit.selector,
+                signer4KeyHash,
+                address(testToken),
+                GuardedExecutor.SpendPeriod.Forever,
+                50_000 ether
+            )
+        });
+
+        uint256 nonce = solverAccount.getNonce(0);
+        bytes32 digest = solverAccount.computeDigest(calls, nonce);
+
+        bytes memory is1 = _wrapSecpSig(signer1PrivateKey, signer1KeyHash, digest);
+        bytes memory is2 = _wrapSecpSig(signer2PrivateKey, signer2KeyHash, digest);
+
+        bytes[] memory innerSignatures = new bytes[](2);
+        innerSignatures[0] = is1;
+        innerSignatures[1] = is2;
+
+        bytes memory multisigSignature =
+            abi.encodePacked(abi.encode(innerSignatures), multisigKeyHash, uint8(0));
+
+        vm.startBroadcast(deployerPrivateKey);
+        solverAccount.execute(
+            hex"01000000000078210001",
+            abi.encode(calls, abi.encodePacked(nonce, multisigSignature))
+        );
+        vm.stopBroadcast();
+
+        console.log("[OK] Signer 4 authorized and granted permissions");
+        console.log("Signer 4 KeyHash:", vm.toString(signer4KeyHash));
+        console.log("Signer 4 Address:", signer4);
+    }
+
     function signer1TransfersTokens() internal {
         console.log("\n========================================");
         console.log("PHASE 5: signer1 Executes Transfer");
@@ -315,15 +402,16 @@ contract DeployTestExecute is Script {
         console.log("========================================");
         console.log("Orchestrator:", address(orchestrator));
         console.log("MultiSigSigner:", address(multiSigSigner));
-        console.log("GardenAccount (Standalone):", address(solverAccount));
+        console.log("IthacaAccount (Standalone):", address(solverAccount));
         console.log("TestToken:", address(testToken));
-        console.log("\nMultisig: 2 of 3");
+        console.log("\nMultisig: 2 of 3 (initial signers)");
         console.log("- Signer 1:", signer1);
         console.log("- Signer 2:", signer2);
         console.log("- Signer 3:", signer3);
+        console.log("\nAdditional Authorized Signer:");
+        console.log("- Signer 4:", signer4, "(not in multisig config)");
         console.log("\nToken Balances:");
         console.log("- Account:", testToken.balanceOf(address(solverAccount)) / 1e18, "TT");
-        console.log("- Signer1:", testToken.balanceOf(signer1) / 1e18, "TT");
         console.log("========================================\n");
     }
 

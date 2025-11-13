@@ -257,6 +257,8 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
             });
             bytes32 multisigKeyHash = _addKey(multisigKey);
             emit Authorized(multisigKeyHash, multisigKey);
+
+            
             
             // Initialize multisig config
             // Note: msg.sender in MultiSigSigner.initConfig will be address(this)
