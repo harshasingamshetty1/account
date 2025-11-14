@@ -88,6 +88,10 @@ contract UpgradeTests is BaseTest {
         bytes memory proxyBytecode = oldProxyAddress.code;
         require(proxyBytecode.length > 0, "No bytecode at old proxy address");
 
+        IthacaAccount.Key memory key = _randomSecp256k1PassKey().k;
+
+        IthacaAccount.Key[] memory keys = new IthacaAccount.Key[](1);
+        keys[0] = key;
         newImplementation = address(new IthacaAccount(address(oc)));
 
         // Generate test keys

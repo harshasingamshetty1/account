@@ -204,9 +204,7 @@ contract Simulator {
             default {
                 // If isStateOverride is true and call succeeded, gasUsed is at offset 0x00
                 let lastSuccess := mload(lastResult)
-                if lastSuccess {
-                    gasUsed := mload(returnDataPtr)
-                }
+                if lastSuccess { gasUsed := mload(returnDataPtr) }
             }
         }
     }

@@ -222,6 +222,8 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     // Constructor
     ////////////////////////////////////////////////////////////////////////
 
+    /// @dev Constructor with flexible initialization
+    /// @param orchestrator The orchestrator address
     constructor(address orchestrator) payable {
         ORCHESTRATOR = orchestrator;
     }
@@ -573,8 +575,9 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         // `keccak256(abi.encode(key.keyType, keccak256(key.publicKey)))`.
         keyHash = hash(key);
         AccountStorage storage $ = _getAccountStorage();
-        $.keyStorage[keyHash]
-        .set(abi.encodePacked(key.publicKey, key.expiry, key.keyType, key.isSuperAdmin));
+        $.keyStorage[keyHash].set(
+            abi.encodePacked(key.publicKey, key.expiry, key.keyType, key.isSuperAdmin)
+        );
         $.keyHashes.add(keyHash);
     }
 
