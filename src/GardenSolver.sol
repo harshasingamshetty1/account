@@ -13,11 +13,11 @@ contract GardenSolver is IthacaAccount, Pausable {
     mapping(address => uint256) public whitelistingTimestamps;
     uint256 public cooldownPeriod;
 
-    error GardenAccount__TargetNotWhitelisted();
-    error GardenAccount__ExecuteCallFailed();
-    error GardenAccount__AlreadyWhitelisted();
-    error GardenAccount__NotWhitelisted();
-    error GardenAccount__ZeroValue();
+    error GardenSolver__TargetNotWhitelisted();
+    error GardenSolver__ExecuteCallFailed();
+    error GardenSolver__AlreadyWhitelisted();
+    error GardenSolver__NotWhitelisted();
+    error GardenSolver__ZeroValue();
 
     event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
 
@@ -32,20 +32,20 @@ contract GardenSolver is IthacaAccount, Pausable {
     }
 
     function changeCooldownPeriod(uint256 newCooldownPeriod) external onlyThis whenNotPaused {
-        require(newCooldownPeriod != 0, GardenAccount__ZeroValue());
+        require(newCooldownPeriod != 0, GardenSolver__ZeroValue());
         cooldownPeriod = newCooldownPeriod;
         emit CooldownPeriodUpdated(newCooldownPeriod);
     }
 
     function whitelistAddress(address addr) external onlyThis whenNotPaused {
-        require(addr != address(0), GardenAccount__ZeroValue());
-        require(!whitelistedAddresses[addr], GardenAccount__AlreadyWhitelisted());
+        require(addr != address(0), GardenSolver__ZeroValue());
+        require(!whitelistedAddresses[addr], GardenSolver__AlreadyWhitelisted());
         whitelistedAddresses[addr] = true;
         whitelistingTimestamps[addr] = block.timestamp;
     }
 
     function removeWhitelistedAddress(address addr) external onlyThis whenNotPaused {
-        require(whitelistedAddresses[addr], GardenAccount__NotWhitelisted());
+        require(whitelistedAddresses[addr], GardenSolver__NotWhitelisted());
         whitelistedAddresses[addr] = false;
         whitelistingTimestamps[addr] = 0;
     }
@@ -61,13 +61,13 @@ contract GardenSolver is IthacaAccount, Pausable {
             !whitelistedAddresses[recipient]
                 || block.timestamp < whitelistingTimestamps[recipient] + cooldownPeriod
         ) {
-            revert GardenAccount__TargetNotWhitelisted();
+            revert GardenSolver__TargetNotWhitelisted();
         }
 
         if (token == address(0)) {
             (bool success,) = recipient.call{value: amount}("");
             if (!success) {
-                revert GardenAccount__ExecuteCallFailed();
+                revert GardenSolver__ExecuteCallFailed();
             }
             return;
         } else {

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import {GardenAccount} from "../src/GardenAccount.sol";
+import {GardenSolver} from "../src/GardenSolver.sol";
 import {IthacaAccount} from "../src/IthacaAccount.sol";
 import {Orchestrator} from "../src/Orchestrator.sol";
 import {MultiSigSigner} from "../src/MultiSigSigner.sol";
@@ -12,7 +12,7 @@ import {GuardedExecutor} from "../src/GuardedExecutor.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title DeployTestExecuteInitiates
-/// @notice Deploy standalone GardenAccount with multisig control and demonstrate initiate flow
+/// @notice Deploy standalone GardenSolver with multisig control and demonstrate initiate flow
 /// @dev ONE-CLICK DEPLOYMENT & EXECUTION:
 ///      forge script script/DeployTestExecuteInitiates.s.sol --rpc-url http://localhost:8545 --broadcast
 ///
@@ -25,7 +25,7 @@ contract DeployTestExecuteInitiates is Script {
     // Deployed contracts
     Orchestrator public orchestrator;
     MultiSigSigner public multiSigSigner;
-    GardenAccount public solverAccount; // Standalone smart contract account
+    GardenSolver public solverAccount; // Standalone smart contract account
     ExperimentERC20 public testToken;
     Initiator public initiator;
 
@@ -108,16 +108,14 @@ contract DeployTestExecuteInitiates is Script {
             publicKey: abi.encode(signer3)
         });
 
-        // Deploy GardenAccount with keys authorized and multisig configured (2-of-3)
-        solverAccount = new GardenAccount{
-            value: 10 ether
-        }(
+        // Deploy GardenSolver with keys authorized and multisig configured (2-of-3)
+        solverAccount = new GardenSolver{value: 10 ether}(
             address(orchestrator),
             signerKeys,
             address(multiSigSigner),
             2 // threshold: 2-of-3
         );
-        console.log("GardenAccount (Standalone):", address(solverAccount));
+        console.log("GardenSolver (Standalone):", address(solverAccount));
         console.log("- Funded with: 10 ETH");
         console.log("- Keys authorized: 3 (signer1, signer2, signer3)");
         console.log("- Multisig configured: 2-of-3");
@@ -290,7 +288,7 @@ contract DeployTestExecuteInitiates is Script {
 
         // Anyone can broadcast the transaction with the valid multisig signature
         vm.startBroadcast(deployerPrivateKey);
-        // Use GardenAccount's execute(Call[], bytes) signature
+        // Use GardenSolver's execute(Call[], bytes) signature
         solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
         vm.stopBroadcast();
 
@@ -327,7 +325,7 @@ contract DeployTestExecuteInitiates is Script {
         bytes memory signer1Wrapped = _wrapSecpSig(signer1PrivateKey, signer1KeyHash, digest);
 
         vm.startBroadcast(signer1PrivateKey);
-        // Use GardenAccount's execute(Call[], bytes) signature
+        // Use GardenSolver's execute(Call[], bytes) signature
         solverAccount.execute(calls, abi.encodePacked(nonce, signer1Wrapped));
         vm.stopBroadcast();
 
@@ -345,7 +343,7 @@ contract DeployTestExecuteInitiates is Script {
         console.log("========================================");
         console.log("Orchestrator:", address(orchestrator));
         console.log("MultiSigSigner:", address(multiSigSigner));
-        console.log("GardenAccount (Standalone):", address(solverAccount));
+        console.log("GardenSolver (Standalone):", address(solverAccount));
         console.log("TestToken:", address(testToken));
         console.log("Initiator:", address(initiator));
         console.log("\nMultisig: 2 of 3");
