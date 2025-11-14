@@ -555,9 +555,7 @@ contract LayerZeroSettlerTest is Test {
         assertEq(address(settlerA).balance, balanceBefore + 5 ether);
     }
 
-    function testFuzz_send_differentSettlementIds(bytes32 settlementId, uint8 numEndpoints)
-        public
-    {
+    function testFuzz_send_differentSettlementIds(bytes32 settlementId, uint8 numEndpoints) public {
         vm.assume(numEndpoints > 0 && numEndpoints <= 3);
 
         uint32[] memory endpointIds = new uint32[](numEndpoints);
