@@ -224,50 +224,8 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
 
     /// @dev Constructor with flexible initialization
     /// @param orchestrator The orchestrator address
-    /// @param initialKeys Array of keys to authorize (can be empty, single, or multiple)
-    /// @param multiSigSigner The MultiSigSigner contract address (use address(0) to skip multisig setup)
-    /// @param threshold The multisig threshold (ignored if multiSigSigner is address(0))
-    constructor(
-        address orchestrator,
-        Key[] memory initialKeys,
-        address multiSigSigner,
-        uint256 threshold
-    ) payable {
+    constructor(address orchestrator) payable {
         ORCHESTRATOR = orchestrator;
-
-        // 1. Authorize individual keys
-        bytes32[] memory keyHashes = new bytes32[](initialKeys.length);
-        for (uint256 i = 0; i < initialKeys.length; i++) {
-            // Prevent individual keys from being super admin if we're setting up multisig
-            if (multiSigSigner != address(0) && initialKeys[i].isSuperAdmin) {
-                revert KeyTypeCannotBeSuperAdmin();
-            }
-            keyHashes[i] = _addKey(initialKeys[i]);
-            emit Authorized(keyHashes[i], initialKeys[i]);
-        }
-
-        // 2. Setup multisig if address provided
-        if (multiSigSigner != address(0)) {
-            // Create and authorize multisig super admin key
-            Key memory multisigKey = Key({
-                expiry: 0,
-                keyType: KeyType.External,
-                isSuperAdmin: true,
-                publicKey: abi.encodePacked(multiSigSigner, bytes12(0))
-            });
-            bytes32 multisigKeyHash = _addKey(multisigKey);
-            emit Authorized(multisigKeyHash, multisigKey);
-
-            // Initialize multisig config
-            // Note: msg.sender in MultiSigSigner.initConfig will be address(this)
-            // Config is stored under _configs[address(this)][multisigKeyHash]
-            (bool success,) = multiSigSigner.call(
-                abi.encodeWithSignature(
-                    "initConfig(bytes32,uint256,bytes32[])", multisigKeyHash, threshold, keyHashes
-                )
-            );
-            require(success, "Multisig init failed");
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////

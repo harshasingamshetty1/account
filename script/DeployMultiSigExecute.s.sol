@@ -269,7 +269,7 @@ contract DeployMultiSigExecute is Script {
             abi.encodePacked(abi.encode(innerSignatures), multisigKeyHash, uint8(0));
 
         // Anyone can broadcast the transaction with the valid multisig signature
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
         // Use GardenSolver's execute(Call[], bytes) signature
         solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
         vm.stopBroadcast();
@@ -310,7 +310,7 @@ contract DeployMultiSigExecute is Script {
         bytes memory multisigSignature =
             abi.encodePacked(abi.encode(innerSignatures), multisigKeyHash, uint8(0));
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast(signer1PrivateKey);
         solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
         vm.stopBroadcast();
 
