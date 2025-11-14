@@ -109,7 +109,9 @@ contract DeployTestExecuteInitiates is Script {
         });
 
         // Deploy GardenAccount with keys authorized and multisig configured (2-of-3)
-        solverAccount = new GardenAccount{value: 10 ether}(
+        solverAccount = new GardenAccount{
+            value: 10 ether
+        }(
             address(orchestrator),
             signerKeys,
             address(multiSigSigner),
@@ -256,7 +258,9 @@ contract DeployTestExecuteInitiates is Script {
         calls[0] = ERC7821.Call({
             to: address(testToken),
             value: 0,
-            data: abi.encodeWithSignature("approve(address,uint256)", address(initiator), approveAmount)
+            data: abi.encodeWithSignature(
+                "approve(address,uint256)", address(initiator), approveAmount
+            )
         });
         // Call 1: Grant signer1 permission to call initiate on Initiator
         calls[1] = ERC7821.Call({
@@ -310,7 +314,10 @@ contract DeployTestExecuteInitiates is Script {
             to: address(initiator),
             value: 0,
             data: abi.encodeWithSignature(
-                "initiate(address,address,uint256)", address(testToken), address(solverAccount), amount
+                "initiate(address,address,uint256)",
+                address(testToken),
+                address(solverAccount),
+                amount
             )
         });
 

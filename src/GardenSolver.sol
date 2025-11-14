@@ -6,7 +6,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract GardenAccount is IthacaAccount, Pausable {
+contract GardenSolver is IthacaAccount, Pausable {
     using LibBytes for *;
 
     mapping(address => bool) public whitelistedAddresses;

@@ -105,7 +105,9 @@ contract DeployTestExecute is Script {
         });
 
         // Deploy GardenAccount with keys authorized and multisig configured (2-of-3)
-        solverAccount = new GardenAccount{value: 10 ether}(
+        solverAccount = new GardenAccount{
+            value: 10 ether
+        }(
             address(orchestrator),
             signerKeys,
             address(multiSigSigner),

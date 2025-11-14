@@ -386,12 +386,7 @@ contract Simulator {
         uint256 paymentPerGas,
         uint256 combinedGasIncrement,
         bytes calldata encodedIntent
-    )
-        public
-        payable
-        virtual
-        returns (uint256 gasUsed, uint256 multicall3Gas, uint256 combinedGas)
-    {
+    ) public payable virtual returns (uint256 gasUsed, uint256 multicall3Gas, uint256 combinedGas) {
         // Decode the intent first
         ICommon.Intent memory u = abi.decode(encodedIntent, (ICommon.Intent));
 
@@ -477,12 +472,7 @@ contract Simulator {
         uint256 combinedGasIncrement,
         uint256 combinedGasVerificationOffset,
         bytes calldata encodedIntent
-    )
-        public
-        payable
-        virtual
-        returns (uint256 gasUsed, uint256 multicall3Gas, uint256 combinedGas)
-    {
+    ) public payable virtual returns (uint256 gasUsed, uint256 multicall3Gas, uint256 combinedGas) {
         (gasUsed, multicall3Gas, combinedGas) = simulateMulticall3CombinedGas(
             multicall3,
             calls,

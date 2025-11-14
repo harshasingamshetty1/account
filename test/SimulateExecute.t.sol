@@ -761,8 +761,7 @@ contract SimulateExecuteTest is BaseTest {
 
         // Get simulated gas using multicall3 with empty preCalls (simulation automatically reverts, no state changes persist)
         t.preCalls = new IMulticall3.Call3[](0);
-        (uint256 simulatedGas, uint256 multicall3Gas, uint256 combinedGas) = simulator
-            .simulateMulticall3CombinedGas(
+        (uint256 simulatedGas, uint256 multicall3Gas, uint256 combinedGas) = simulator.simulateMulticall3CombinedGas(
             address(multicall3), t.preCalls, address(oc), 2, 1e11, 11_000, abi.encode(i)
         );
 
