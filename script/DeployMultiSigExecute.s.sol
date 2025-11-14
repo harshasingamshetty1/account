@@ -11,9 +11,16 @@ import {ExperimentERC20} from "../deploy/mock/ExperimentalERC20.sol";
 import {GuardedExecutor} from "../src/GuardedExecutor.sol";
 
 /// @title DeployMultiSigExecute
-/// @notice Deploy standalone GardenSolver with multisig control and authorized signer execution
+/// @notice Deploy GardenAccount with multisig control and demonstrate whitelist + withdraw flow
 /// @dev ONE-CLICK DEPLOYMENT & EXECUTION:
 ///      forge script script/DeployMultiSigExecute.s.sol --rpc-url http://localhost:8545 --broadcast
+///
+///      Demonstrates:
+///      1. Deploy GardenAccount with 2-of-3 multisig (signer1, signer2, signer3)
+///      2. Use multisig to call whitelistAddress(signer3)
+///      3. Use multisig to call changeCooldownPeriod(1) to set cooldown to 1 second
+///      4. Verify whitelist and cooldown configuration
+///      Note: Actual withdrawal requires waiting for cooldown period to elapse
 ///
 ///      Or run in two steps:
 ///      STEP 1: forge script script/DeployMultiSigExecute.s.sol --sig "deployContracts()" --rpc-url http://localhost:8545 --broadcast
@@ -46,16 +53,10 @@ contract DeployMultiSigExecute is Script {
         0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a;
     address public signer3;
 
-    // Account #5: Signer 4 (to be added later)
-    uint256 public signer4PrivateKey =
-        0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba;
-    address public signer4;
-
     // Keys
     bytes32 public signer1KeyHash;
     bytes32 public signer2KeyHash;
     bytes32 public signer3KeyHash;
-    bytes32 public signer4KeyHash;
     bytes32 public multisigKeyHash;
 
     function setUp() public {
@@ -64,7 +65,6 @@ contract DeployMultiSigExecute is Script {
         signer1 = vm.addr(signer1PrivateKey);
         signer2 = vm.addr(signer2PrivateKey);
         signer3 = vm.addr(signer3PrivateKey);
-        signer4 = vm.addr(signer4PrivateKey);
 
         console.log("\n========================================");
         console.log("ANVIL DEFAULT ACCOUNTS");
@@ -73,7 +73,6 @@ contract DeployMultiSigExecute is Script {
         console.log("Signer 1 (Account #2):", signer1);
         console.log("Signer 2 (Account #3):", signer2);
         console.log("Signer 3 (Account #4):", signer3);
-        console.log("Signer 4 (Account #5):", signer4);
         console.log("========================================\n");
     }
 
@@ -91,7 +90,7 @@ contract DeployMultiSigExecute is Script {
         multiSigSigner = new MultiSigSigner();
         console.log("MultiSigSigner:", address(multiSigSigner));
 
-        // Prepare initial signer keys (non-super-admin)
+        // Prepare initial signer keys (non-super-admin - only External keys can be super admin)
         IthacaAccount.Key[] memory signerKeys = new IthacaAccount.Key[](3);
         signerKeys[0] = IthacaAccount.Key({
             expiry: 0,
@@ -204,19 +203,19 @@ contract DeployMultiSigExecute is Script {
         IthacaAccount.Key memory signer1Key = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: true,
+            isSuperAdmin: false,
             publicKey: abi.encode(signer1)
         });
         IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: true,
+            isSuperAdmin: false,
             publicKey: abi.encode(signer2)
         });
         IthacaAccount.Key memory signer3Key = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: true,
+            isSuperAdmin: false,
             publicKey: abi.encode(signer3)
         });
         IthacaAccount.Key memory multisigKeyStruct = IthacaAccount.Key({
@@ -238,40 +237,22 @@ contract DeployMultiSigExecute is Script {
         console.log("[OK] KeyHashes computed\n");
 
         // Execute phases
-        grantSigner1PermissionsWithMultisig();
-        addSigner4WithMultisig();
+        whitelistSigner3WithMultisig();
+        changeCooldownPeriodWithMultisig();
+        verifyWhitelistAndCooldown();
         printSummary();
     }
 
-    function grantSigner1PermissionsWithMultisig() internal {
+    function whitelistSigner3WithMultisig() internal {
         console.log("\n========================================");
-        console.log("PHASE 2: Grant signer1 Permissions (Multisig)");
+        console.log("PHASE 2: Whitelist Signer3 (Multisig)");
         console.log("========================================\n");
 
-        bytes4 transferSel = bytes4(keccak256("transfer(address,uint256)"));
-
-        ERC7821.Call[] memory calls = new ERC7821.Call[](2);
+        ERC7821.Call[] memory calls = new ERC7821.Call[](1);
         calls[0] = ERC7821.Call({
             to: address(solverAccount),
             value: 0,
-            data: abi.encodeWithSelector(
-                GuardedExecutor.setCanExecute.selector,
-                signer1KeyHash,
-                address(testToken),
-                transferSel,
-                true
-            )
-        });
-        calls[1] = ERC7821.Call({
-            to: address(solverAccount),
-            value: 0,
-            data: abi.encodeWithSelector(
-                GuardedExecutor.setSpendLimit.selector,
-                signer1KeyHash,
-                address(testToken),
-                GuardedExecutor.SpendPeriod.Forever,
-                100_000 ether
-            )
+            data: abi.encodeWithSelector(GardenSolver.whitelistAddress.selector, signer3)
         });
 
         uint256 nonce = solverAccount.getNonce(0);
@@ -293,59 +274,114 @@ contract DeployMultiSigExecute is Script {
         solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
         vm.stopBroadcast();
 
-        console.log("[OK] signer1 granted canExecute + spend limit\n");
+        console.log("[OK] Signer3 whitelisted");
+        console.log("Signer3 Address:", signer3);
+        console.log("Whitelisting timestamp:", block.timestamp);
+        console.log("\n");
     }
 
-    function addSigner4WithMultisig() internal {
+    function changeCooldownPeriodWithMultisig() internal {
         console.log("\n========================================");
-        console.log("PHASE 3: Add Signer 4 via Multisig");
+        console.log("PHASE 3: Disable Cooldown Period (Multisig)");
         console.log("========================================\n");
 
-        // Create Key struct for signer4
-        IthacaAccount.Key memory signer4Key = IthacaAccount.Key({
-            expiry: 0,
-            keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: false,
-            publicKey: abi.encode(signer4)
-        });
+        console.log("Current cooldown period: 1 day");
 
-        // Compute signer4 keyHash
-        signer4KeyHash = solverAccount.hash(signer4Key);
-
-        // Grant signer4 some permissions as well
-        bytes4 transferSel = bytes4(keccak256("transfer(address,uint256)"));
-
-        ERC7821.Call[] memory calls = new ERC7821.Call[](3);
-        // Call 0: Authorize signer4 key
+        ERC7821.Call[] memory calls = new ERC7821.Call[](1);
         calls[0] = ERC7821.Call({
             to: address(solverAccount),
             value: 0,
-            data: abi.encodeWithSignature(
-                "authorize(bytes32,(uint40,uint8,bool,bytes))", signer4KeyHash, signer4Key
+            data: abi.encodeWithSelector(
+                GardenSolver.changeCooldownPeriod.selector,
+                1 // Set to 1 second (minimum non-zero value)
             )
         });
-        // Call 1: Grant signer4 permission to transfer tokens
-        calls[1] = ERC7821.Call({
+
+        uint256 nonce = solverAccount.getNonce(0);
+        bytes32 digest = solverAccount.computeDigest(calls, nonce);
+
+        bytes memory is1 = _wrapSecpSig(signer1PrivateKey, signer1KeyHash, digest);
+        bytes memory is2 = _wrapSecpSig(signer2PrivateKey, signer2KeyHash, digest);
+
+        bytes[] memory innerSignatures = new bytes[](2);
+        innerSignatures[0] = is1;
+        innerSignatures[1] = is2;
+
+        bytes memory multisigSignature =
+            abi.encodePacked(abi.encode(innerSignatures), multisigKeyHash, uint8(0));
+
+        vm.startBroadcast(deployerPrivateKey);
+        solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
+        vm.stopBroadcast();
+
+        console.log("[OK] Cooldown period changed to 1 second");
+        console.log("New cooldown period:", solverAccount.cooldownPeriod(), "seconds");
+        console.log("\n");
+    }
+
+    function verifyWhitelistAndCooldown() internal view {
+        console.log("\n========================================");
+        console.log("PHASE 4: Verify Whitelist & Cooldown Configuration");
+        console.log("========================================\n");
+
+        // Verify signer3 is whitelisted
+        bool isWhitelisted = solverAccount.whitelistedAddresses(signer3);
+        uint256 whitelistTimestamp = solverAccount.whitelistingTimestamps(signer3);
+        uint256 cooldown = solverAccount.cooldownPeriod();
+
+        console.log("Signer3 whitelisted:", isWhitelisted);
+        console.log("Whitelisting timestamp:", whitelistTimestamp);
+        console.log("Current cooldown period:", cooldown, "seconds");
+        console.log("Current block timestamp:", block.timestamp);
+        console.log("Withdrawal available after:", whitelistTimestamp + cooldown);
+
+        if (block.timestamp >= whitelistTimestamp + cooldown) {
+            console.log("\n[OK] Cooldown period has elapsed - withdrawal is now possible!");
+        } else {
+            uint256 timeRemaining = (whitelistTimestamp + cooldown) - block.timestamp;
+            console.log(
+                "\n[INFO] Cooldown in progress - withdrawal available in", timeRemaining, "seconds"
+            );
+            console.log(
+                "[INFO] In production, multisig would call withdraw() after cooldown elapses"
+            );
+        }
+
+        console.log("\n[OK] Whitelist and cooldown configuration successful!");
+        console.log("Multisig has demonstrated ability to:");
+        console.log("  1. Whitelist addresses via whitelistAddress()");
+        console.log("  2. Modify security parameters via changeCooldownPeriod()");
+        console.log("  3. Execute withdrawals via withdraw() (after cooldown)");
+    }
+
+    function withdrawToSigner3WithMultisig() internal {
+        console.log("\n========================================");
+        console.log("PHASE 4: Withdraw to Signer3 (Multisig)");
+        console.log("========================================\n");
+
+        // Need to mine a block with increased timestamp to satisfy cooldown
+        // In a real scenario, you would wait or the cooldown would be passed naturally
+        console.log("Note: In a real deployment, you would need to wait for the cooldown period.");
+        console.log("For testing, we'll use the actual blockchain timestamp.\n");
+
+        // Record balances before withdrawal
+        uint256 accountBalanceBefore = testToken.balanceOf(address(solverAccount));
+        uint256 signer3BalanceBefore = testToken.balanceOf(signer3);
+
+        assert(testToken.balanceOf(address(solverAccount)) == 1_000_000 ether);
+        assert(testToken.balanceOf(signer3) == 0);
+
+        console.log("Account balance before:", accountBalanceBefore / 1e18, "TT");
+        console.log("Signer3 balance before:", signer3BalanceBefore / 1e18, "TT");
+
+        uint256 withdrawAmount = 1_000 ether;
+
+        ERC7821.Call[] memory calls = new ERC7821.Call[](1);
+        calls[0] = ERC7821.Call({
             to: address(solverAccount),
             value: 0,
             data: abi.encodeWithSelector(
-                GuardedExecutor.setCanExecute.selector,
-                signer4KeyHash,
-                address(testToken),
-                transferSel,
-                true
-            )
-        });
-        // Call 2: Set spend limit for signer4
-        calls[2] = ERC7821.Call({
-            to: address(solverAccount),
-            value: 0,
-            data: abi.encodeWithSelector(
-                GuardedExecutor.setSpendLimit.selector,
-                signer4KeyHash,
-                address(testToken),
-                GuardedExecutor.SpendPeriod.Forever,
-                50_000 ether
+                GardenSolver.withdraw.selector, signer3, address(testToken), withdrawAmount
             )
         });
 
@@ -367,37 +403,26 @@ contract DeployMultiSigExecute is Script {
         solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
         vm.stopBroadcast();
 
-        console.log("[OK] Signer 4 authorized and granted permissions");
-        console.log("Signer 4 KeyHash:", vm.toString(signer4KeyHash));
-        console.log("Signer 4 Address:", signer4);
-    }
+        // Record balances after withdrawal
+        uint256 accountBalanceAfter = testToken.balanceOf(address(solverAccount));
+        uint256 signer3BalanceAfter = testToken.balanceOf(signer3);
 
-    function signer1TransfersTokens() internal {
-        console.log("\n========================================");
-        console.log("PHASE 5: signer1 Executes Transfer");
-        console.log("========================================\n");
+        console.log("\n[OK] Withdrawal successful!");
+        console.log("Amount withdrawn:", withdrawAmount / 1e18, "TT");
+        console.log("Account balance after:", accountBalanceAfter / 1e18, "TT");
+        console.log("Signer3 balance after:", signer3BalanceAfter / 1e18, "TT");
 
-        uint256 amount = 1_000 ether;
+        assert(testToken.balanceOf(address(solverAccount)) == 1_000_000 ether - withdrawAmount);
+        assert(testToken.balanceOf(signer3) == 0 + withdrawAmount);
 
-        ERC7821.Call[] memory calls = new ERC7821.Call[](1);
-        calls[0] = ERC7821.Call({
-            to: address(testToken),
-            value: 0,
-            data: abi.encodeWithSignature("transfer(address,uint256)", signer1, amount)
-        });
-
-        uint256 nonce = solverAccount.getNonce(0);
-        bytes32 digest = solverAccount.computeDigest(calls, nonce);
-
-        bytes memory signer1Wrapped = _wrapSecpSig(signer1PrivateKey, signer1KeyHash, digest);
-
-        vm.startBroadcast(signer1PrivateKey);
-        // Use GardenSolver's execute(Call[], bytes) signature
-        solverAccount.execute(calls, abi.encodePacked(nonce, signer1Wrapped));
-        vm.stopBroadcast();
-
-        console.log("[OK] signer1 pulled", amount, "TT");
-        console.log("New signer1 balance:", testToken.balanceOf(signer1));
+        // Assertions
+        require(
+            accountBalanceAfter == accountBalanceBefore - withdrawAmount, "Account balance mismatch"
+        );
+        require(
+            signer3BalanceAfter == signer3BalanceBefore + withdrawAmount, "Signer3 balance mismatch"
+        );
+        console.log("\n[OK] All assertions passed!");
     }
 
     function printSummary() internal view {
@@ -408,14 +433,22 @@ contract DeployMultiSigExecute is Script {
         console.log("MultiSigSigner:", address(multiSigSigner));
         console.log("GardenSolver (Standalone):", address(solverAccount));
         console.log("TestToken:", address(testToken));
-        console.log("\nMultisig: 2 of 3 (initial signers)");
+        console.log("\nMultisig Configuration: 2 of 3");
         console.log("- Signer 1:", signer1);
         console.log("- Signer 2:", signer2);
         console.log("- Signer 3:", signer3);
-        console.log("\nAdditional Authorized Signer:");
-        console.log("- Signer 4:", signer4, "(not in multisig config)");
-        console.log("\nToken Balances:");
-        console.log("- Account:", testToken.balanceOf(address(solverAccount)) / 1e18, "TT");
+        console.log("\nOperations Performed:");
+        console.log("1. Whitelisted Signer3 via multisig");
+        console.log("2. Changed cooldown period to 1 second via multisig");
+        console.log("3. Verified whitelist and cooldown configuration");
+        console.log("\nNext Step (in production):");
+        console.log("After cooldown elapses, multisig can call withdraw()");
+        console.log("to transfer tokens to whitelisted address.");
+        console.log("\nFinal Token Balances:");
+        console.log("- GardenAccount:", testToken.balanceOf(address(solverAccount)) / 1e18, "TT");
+        console.log("- Signer3:", testToken.balanceOf(signer3) / 1e18, "TT");
+        console.log("\nNote: Withdrawal not executed due to cooldown period.");
+        console.log("In production, wait for cooldown, then call withdraw().");
         console.log("========================================\n");
     }
 

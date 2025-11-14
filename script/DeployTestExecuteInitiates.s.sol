@@ -204,19 +204,19 @@ contract DeployTestExecuteInitiates is Script {
         IthacaAccount.Key memory signer1Key = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: true,
+            isSuperAdmin: false,
             publicKey: abi.encode(signer1)
         });
         IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: true,
+            isSuperAdmin: false,
             publicKey: abi.encode(signer2)
         });
         IthacaAccount.Key memory signer3Key = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: true,
+            isSuperAdmin: false,
             publicKey: abi.encode(signer3)
         });
         IthacaAccount.Key memory multisigKeyStruct = IthacaAccount.Key({
@@ -256,9 +256,7 @@ contract DeployTestExecuteInitiates is Script {
         calls[0] = ERC7821.Call({
             to: address(testToken),
             value: 0,
-            data: abi.encodeWithSignature(
-                "approve(address,uint256)", address(initiator), approveAmount
-            )
+            data: abi.encodeWithSignature("approve(address,uint256)", address(initiator), approveAmount)
         });
         // Call 1: Grant signer1 permission to call initiate on Initiator
         calls[1] = ERC7821.Call({
@@ -312,10 +310,7 @@ contract DeployTestExecuteInitiates is Script {
             to: address(initiator),
             value: 0,
             data: abi.encodeWithSignature(
-                "initiate(address,address,uint256)",
-                address(testToken),
-                address(solverAccount),
-                amount
+                "initiate(address,address,uint256)", address(testToken), address(solverAccount), amount
             )
         });
 

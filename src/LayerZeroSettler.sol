@@ -102,9 +102,7 @@ contract LayerZeroSettler is OApp, ISettler, EIP712 {
         }
     }
 
-    function _getPeerOrRevert(
-        uint32 /* _eid */
-    )
+    function _getPeerOrRevert(uint32 /* _eid */ )
         internal
         view
         virtual
@@ -141,10 +139,7 @@ contract LayerZeroSettler is OApp, ISettler, EIP712 {
         bytes calldata _payload,
         address, /*_executor*/
         bytes calldata /*_extraData*/
-    )
-        internal
-        override
-    {
+    ) internal override {
         // Decode the settlement data
         (bytes32 settlementId, address sender, uint256 senderChainId) =
             abi.decode(_payload, (bytes32, address, uint256));
