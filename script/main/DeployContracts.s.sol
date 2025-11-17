@@ -3,13 +3,12 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "forge-std/StdJson.sol";
-import {Orchestrator} from "../../src/Orchestrator.sol";
 import {MultiSigSigner} from "../../src/MultiSigSigner.sol";
 import {GardenSolver} from "../../src/GardenSolver.sol";
 import {IthacaAccount} from "../../src/IthacaAccount.sol";
 
 /// @title DeployContracts
-/// @notice Deploys Orchestrator, MultiSigSigner, and GardenSolver contracts
+/// @notice Deploys MultiSigSigner and GardenSolver contracts
 /// @dev Usage:
 ///      forge script script/main/DeployContracts.s.sol --rpc-url $RPC_URL --broadcast
 ///
@@ -44,8 +43,7 @@ contract DeployContracts is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        Orchestrator orchestrator = new Orchestrator();
-        console.log("Orchestrator:", address(orchestrator));
+        address orchestrator = address(0);
 
         MultiSigSigner multiSigSigner = new MultiSigSigner();
         console.log("MultiSigSigner:", address(multiSigSigner));
@@ -73,7 +71,7 @@ contract DeployContracts is Script {
 
         // Deploy GardenSolver
         GardenSolver solver = new GardenSolver{value: fundAmountWei}(
-            address(orchestrator),
+            orchestrator,
             signerKeys,
             address(multiSigSigner),
             threshold
@@ -101,7 +99,6 @@ contract DeployContracts is Script {
         console.log("\n========================================");
         console.log("DEPLOYMENT SUMMARY");
         console.log("========================================");
-        console.log("Orchestrator:", address(orchestrator));
         console.log("MultiSigSigner:", address(multiSigSigner));
         console.log("GardenSolver:", address(solver));
         console.log("\nKey Hashes:");

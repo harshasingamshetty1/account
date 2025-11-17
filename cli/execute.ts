@@ -11,7 +11,6 @@ import {
 
 interface DeployedContracts {
   chain: string;
-  orchestrator: string;
   multiSigSigner: string;
   gardenSolver: string;
   signer1Address: string;

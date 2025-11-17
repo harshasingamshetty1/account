@@ -24,7 +24,6 @@ interface Config {
 
 interface DeployedContracts {
   chain: string;
-  orchestrator: string;
   multiSigSigner: string;
   gardenSolver: string;
   signer1Address: string;
@@ -172,7 +171,6 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     });
 
     // Parse contract addresses from output
-    const orchestrator = parseForgeOutput(output, "Orchestrator");
     const multiSigSigner = parseForgeOutput(output, "MultiSigSigner");
     const gardenSolver = parseForgeOutput(output, "GardenSolver");
 
@@ -183,14 +181,12 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     const multisigKeyHash = parseKeyHash(output, "Multisig KeyHash");
 
     console.log("✅ Deployment successful!");
-    console.log(`   Orchestrator: ${orchestrator}`);
     console.log(`   MultiSigSigner: ${multiSigSigner}`);
     console.log(`   GardenSolver: ${gardenSolver}`);
     console.log("");
 
     return {
       chain: chain.name,
-      orchestrator,
       multiSigSigner,
       gardenSolver,
       signer1Address,
@@ -276,7 +272,6 @@ async function main() {
     console.log("Successfully deployed chains:");
     for (const [chainName, deployment] of Object.entries(results.deployments)) {
       console.log(`\n  ${chainName}:`);
-      console.log(`    Orchestrator: ${deployment.orchestrator}`);
       console.log(`    MultiSigSigner: ${deployment.multiSigSigner}`);
       console.log(`    GardenSolver: ${deployment.gardenSolver}`);
     }

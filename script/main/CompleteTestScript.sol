@@ -4,7 +4,6 @@ pragma solidity ^0.8.23;
 import "forge-std/Script.sol";
 import {GardenSolver} from "../../src/GardenSolver.sol";
 import {IthacaAccount} from "../../src/IthacaAccount.sol";
-import {Orchestrator} from "../../src/Orchestrator.sol";
 import {MultiSigSigner} from "../../src/MultiSigSigner.sol";
 import {ERC7821} from "solady/accounts/ERC7821.sol";
 import {GuardedExecutor} from "../../src/GuardedExecutor.sol";
@@ -23,7 +22,6 @@ import {ExperimentERC20} from "../../deploy/mock/ExperimentalERC20.sol";
 ///
 contract CompleteTestScript is Script {
     // Deployed contracts
-    Orchestrator public orchestrator;
     MultiSigSigner public multiSigSigner;
     GardenSolver public solverAccount; // Standalone smart contract account
     ExperimentERC20 public testToken;
@@ -86,8 +84,7 @@ contract CompleteTestScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        orchestrator = new Orchestrator();
-        console.log("Orchestrator:", address(orchestrator));
+        address orchestrator = address(0);
 
         multiSigSigner = new MultiSigSigner();
         console.log("MultiSigSigner:", address(multiSigSigner));
@@ -115,7 +112,7 @@ contract CompleteTestScript is Script {
 
         // Deploy GardenSolver with keys authorized and multisig configured (2-of-3)
         solverAccount = new GardenSolver{value: 0.01 ether}(
-            address(orchestrator),
+            orchestrator,
             signerKeys,
             address(multiSigSigner),
             2 // threshold: 2-of-3

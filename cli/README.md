@@ -43,7 +43,7 @@ This directory contains TypeScript scripts for deploying contracts and executing
 
 ### Step 1: Deploy Contracts
 
-Deploy all contracts (Orchestrator, MultiSigSigner, GardenSolver) and save deployment info to `deployed.json`:
+Deploy the required contracts (MultiSigSigner + GardenSolver) and save deployment info to `deployed.json`:
 
 ```bash
 npm run deploy
@@ -53,7 +53,6 @@ tsx cli/deploy.ts
 
 This will:
 
-- Deploy Orchestrator
 - Deploy MultiSigSigner
 - Deploy GardenSolver with 3 signers and 2-of-3 multisig threshold
 - Fund GardenSolver with 10 ETH
