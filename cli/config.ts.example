@@ -1,0 +1,14 @@
+// Example configuration file
+// Copy this to config.ts and fill in your private keys
+// Or set them as environment variables
+
+export const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || "";
+export const SIGNER_ONE_PRIVATE_KEY = process.env.SIGNER_ONE_PRIVATE_KEY || "";
+export const SIGNER_TWO_PRIVATE_KEY = process.env.SIGNER_TWO_PRIVATE_KEY || "";
+export const SIGNER_THREE_PRIVATE_KEY = process.env.SIGNER_THREE_PRIVATE_KEY || "";
+
+// Validate that all private keys are set
+if (!DEPLOYER_PRIVATE_KEY || !SIGNER_ONE_PRIVATE_KEY || !SIGNER_TWO_PRIVATE_KEY || !SIGNER_THREE_PRIVATE_KEY) {
+  throw new Error("Missing required private keys. Please set all private keys in config.ts or as environment variables.");
+}
+

@@ -4,6 +4,16 @@
   "description": "EIP-7702 account for Ithaca Porto",
   "license": "MIT",
   "scripts": {
-    "tests": "forge test --no-match-contract UpgradeTests"
+    "tests": "forge test --no-match-contract UpgradeTests",
+    "deploy": "tsx cli/deploy.ts",
+    "execute": "tsx cli/execute.ts"
+  },
+  "dependencies": {
+    "ethers": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   }
 }

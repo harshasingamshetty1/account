@@ -1,0 +1,13 @@
+{
+  "chains": [
+    {
+      "name": "sepolia",
+      "rpc": "https://0xrpc.io/sep",
+      "htlcs": [
+        "0xd1E0Ba2b165726b3a6051b765d4564d030FDcf50",
+        "0x730Be401ef981D199a0560C87DfdDaFd3EC1C493"
+      ],
+      "fundAmount": "0.001"
+    }
+  ]
+}
