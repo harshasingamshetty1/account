@@ -9,6 +9,7 @@
     "execute": "tsx cli/execute.ts"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "ethers": "^6.0.0"
   },
   "devDependencies": {

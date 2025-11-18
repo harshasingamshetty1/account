@@ -1,6 +1,3 @@
-# Private keys - never commit real keys!
-config.ts
-
 # Deployment output
 deployed.json
 
