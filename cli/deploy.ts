@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { execSync } from "child_process";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { ethers } from "ethers";
 import {
@@ -53,42 +53,77 @@ function deriveAddress(privateKey: string): string {
   return wallet.address;
 }
 
-function parseForgeOutput(output: string, contractName: string): string {
-  // Try multiple patterns to find contract address
-  const patterns = [
-    new RegExp(`${contractName}:\\s+(0x[a-fA-F0-9]{40})`, "i"),
-    new RegExp(
-      `${contractName}\\s+deployed\\s+to:\\s+(0x[a-fA-F0-9]{40})`,
-      "i"
-    ),
-    new RegExp(
-      `Deployed\\s+${contractName}\\s+to:\\s+(0x[a-fA-F0-9]{40})`,
-      "i"
-    ),
-  ];
+/**
+ * Get chain ID from RPC provider
+ */
+async function getChainId(rpcUrl: string): Promise<number> {
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const network = await provider.getNetwork();
+  return Number(network.chainId);
+}
 
-  for (const regex of patterns) {
-    const match = output.match(regex);
-    if (match && match[1]) {
-      return match[1];
+/**
+ * Parse contract addresses from forge broadcast artifacts
+ */
+function parseBroadcastArtifacts(
+  chainId: number,
+  scriptName: string
+): {
+  multiSigSigner: string;
+  gardenSolver: string;
+} {
+  const broadcastPath = join(
+    __dirname,
+    `../broadcast/${scriptName}/${chainId}/run-latest.json`
+  );
+
+  if (!existsSync(broadcastPath)) {
+    throw new Error(
+      `Broadcast artifact not found: ${broadcastPath}\n` +
+        `Make sure the deployment completed successfully.`
+    );
+  }
+
+  const broadcast = JSON.parse(readFileSync(broadcastPath, "utf-8"));
+
+  const contracts: Record<string, string> = {};
+
+  // Extract contract addresses from transactions
+  for (const tx of broadcast.transactions || []) {
+    if (tx.transactionType === "CREATE" && tx.contractName) {
+      contracts[tx.contractName] = tx.contractAddress;
     }
   }
 
-  // If not found, try to find any address after the contract name
-  const lines = output.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].toLowerCase().includes(contractName.toLowerCase())) {
-      // Look for address in the same line or next few lines
-      for (let j = i; j < Math.min(i + 3, lines.length); j++) {
-        const addrMatch = lines[j].match(/(0x[a-fA-F0-9]{40})/);
-        if (addrMatch) {
-          return addrMatch[1];
-        }
+  // Also check receipts as fallback
+  for (const receipt of broadcast.receipts || []) {
+    if (receipt.contractAddress) {
+      // Find matching transaction to get contract name
+      const matchingTx = broadcast.transactions?.find(
+        (tx: any) => tx.hash === receipt.transactionHash
+      );
+      if (matchingTx?.contractName) {
+        contracts[matchingTx.contractName] = receipt.contractAddress;
       }
     }
   }
 
-  throw new Error(`Could not find ${contractName} address in forge output`);
+  const multiSigSigner = contracts["MultiSigSigner"];
+  const gardenSolver = contracts["GardenSolver"];
+
+  if (!multiSigSigner) {
+    throw new Error(
+      `Could not find MultiSigSigner address in broadcast artifacts`
+    );
+  }
+
+  if (!gardenSolver) {
+    throw new Error(
+      `Could not find GardenSolver address in broadcast artifacts`
+    );
+  }
+
+  return { multiSigSigner, gardenSolver };
 }
 
 function parseKeyHash(output: string, keyName: string): string {
@@ -157,7 +192,7 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
   );
 
   // Build forge command
-  const scriptPath = join(__dirname, "../main/DeployContracts.s.sol");
+  const scriptPath = join(__dirname, "../script/main/DeployContracts.s.sol");
   const command = `forge script ${scriptPath} --rpc-url ${chain.rpc} --broadcast -vvv`;
 
   console.log("🚀 Executing deployment...");
@@ -170,11 +205,18 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
       stdio: "pipe",
     });
 
-    // Parse contract addresses from output
-    const multiSigSigner = parseForgeOutput(output, "MultiSigSigner");
-    const gardenSolver = parseForgeOutput(output, "GardenSolver");
+    // Get chain ID from RPC
+    const chainId = await getChainId(chain.rpc);
+    console.log(`   Chain ID: ${chainId}`);
 
-    // Parse key hashes
+    // Parse contract addresses from broadcast artifacts
+    const scriptName = "DeployContracts.s.sol";
+    const { multiSigSigner, gardenSolver } = parseBroadcastArtifacts(
+      chainId,
+      scriptName
+    );
+
+    // Parse key hashes from console.log output (not available in broadcast artifacts)
     const signer1KeyHash = parseKeyHash(output, "Signer1 KeyHash");
     const signer2KeyHash = parseKeyHash(output, "Signer2 KeyHash");
     const signer3KeyHash = parseKeyHash(output, "Signer3 KeyHash");

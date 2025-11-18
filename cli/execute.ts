@@ -52,7 +52,7 @@ async function executeApproveTokens(
     DEPLOYER_PRIVATE_KEY: DEPLOYER_PRIVATE_KEY,
   };
 
-  const scriptPath = join(__dirname, "../main/ApproveHTLCToken.s.sol");
+  const scriptPath = join(__dirname, "../script/main/ApproveHTLCToken.s.sol");
   const command = `forge script ${scriptPath} --rpc-url ${chain.rpc} --broadcast -vvv`;
 
   console.log("Executing token approval...");
@@ -88,7 +88,10 @@ async function executeGrantPermissions(
     DEPLOYER_PRIVATE_KEY: DEPLOYER_PRIVATE_KEY,
   };
 
-  const scriptPath = join(__dirname, "../main/GrantHTLCPermissions.s.sol");
+  const scriptPath = join(
+    __dirname,
+    "../script/main/GrantHTLCPermissions.s.sol"
+  );
   const command = `forge script ${scriptPath} --rpc-url ${chain.rpc} --broadcast -vvv`;
 
   console.log("Executing permission grant...");
@@ -129,7 +132,7 @@ async function executeInitiateHTLC(
     SIGNER_PRIVATE_KEY: SIGNER_ONE_PRIVATE_KEY,
   };
 
-  const scriptPath = join(__dirname, "../main/InitiateHTLC.s.sol");
+  const scriptPath = join(__dirname, "../script/main/InitiateHTLC.s.sol");
   const command = `forge script ${scriptPath} --rpc-url ${chain.rpc} --broadcast -vvv`;
 
   console.log("Executing HTLC initiation...");
@@ -202,7 +205,7 @@ async function main() {
   // /*
   const redeemerAddress = "0x9596ce01462aa3b46ae5aa8a0d550095de10fcfa"; // Address that can redeem the HTLC
   const timelock = 1000000; // Block number timelock
-  const amount = "1000000000000000000"; // Amount in wei (1 token with 18 decimals)
+  const amount = "500";
   const secretHash =
     "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"; // keccak256 hash of the secret
 
