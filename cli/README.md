@@ -1,90 +1,20 @@
-# CLI Deployment and Execution Scripts
+# CLI Deployment and Execution
 
-This directory contains TypeScript scripts for deploying contracts and executing multisig operations.
+TypeScript scripts for deploying contracts and executing multisig operations across multiple chains.
 
-## Setup
+## Installation
 
-1. **Install dependencies**:
-
-   ```bash
-   npm install
-   ```
-
-2. **Configure private keys**:
-
-   Copy the example config file:
-
-   ```bash
-   cp cli/config.ts.example cli/config.ts
-   ```
-
-   Then edit `cli/config.ts` and set your private keys:
-
-   - Set `DEPLOYER_PRIVATE_KEY`
-   - Set `SIGNER_ONE_PRIVATE_KEY`
-   - Set `SIGNER_TWO_PRIVATE_KEY`
-   - Set `SIGNER_THREE_PRIVATE_KEY`
-
-   Or set them as environment variables:
-
-   ```bash
-   export DEPLOYER_PRIVATE_KEY=0x...
-   export SIGNER_ONE_PRIVATE_KEY=0x...
-   export SIGNER_TWO_PRIVATE_KEY=0x...
-   export SIGNER_THREE_PRIVATE_KEY=0x...
-   ```
-
-3. **Configure chains** in `config.json`:
-   - Add or modify chain configurations
-   - Set RPC URLs
-   - Add HTLC contract addresses
-
-## Usage
-
-### Step 1: Deploy Contracts
-
-Deploy the required contracts (MultiSigSigner + GardenSolver) and save deployment info to `deployed.json`:
+Install `tsx` globally to run TypeScript files directly:
 
 ```bash
-npm run deploy
-# or
-tsx cli/deploy.ts
+npm i -g tsx
 ```
-
-This will:
-
-- Deploy MultiSigSigner
-- Deploy GardenSolver with 3 signers and 2-of-3 multisig threshold
-- Fund GardenSolver with 10 ETH
-- Save all addresses and key hashes to `deployed.json`
-
-### Step 2: Execute Multisig Operations
-
-After deployment, execute multisig operations:
-
-```bash
-npm run execute
-# or
-tsx cli/execute.ts
-```
-
-This will:
-
-1. Approve tokens to all HTLC addresses (via multisig)
-2. Grant HTLC permissions to signer1 (via multisig)
-3. (Optional) Initiate HTLC order (commented out by default)
-
-## File Structure
-
-- `config.json` - Chain configuration (RPC URLs, HTLC addresses)
-- `config.ts` - Private keys configuration
-- `deploy.ts` - Deployment script
-- `execute.ts` - Execution script for multisig operations
-- `deployed.json` - Generated file with deployment addresses (created after running deploy.ts)
 
 ## Configuration
 
 ### config.json
+
+Configure your chains with RPC URLs, HTLC addresses, and funding amounts:
 
 ```json
 {
@@ -95,43 +25,62 @@ This will:
       "htlcs": [
         "0xd1E0Ba2b165726b3a6051b765d4564d030FDcf50",
         "0x730Be401ef981D199a0560C87DfdDaFd3EC1C493"
-      ]
+      ],
+      "fundAmount": "0.001"
     }
   ]
 }
 ```
 
-### config.ts
+### .env
 
-Private keys can be set directly or via environment variables:
+Create a `.env` file in the `cli` directory with your keys and addresses. Environment variables are required for authentication and signing transactions.
 
-- `DEPLOYER_PRIVATE_KEY` - Private key for deploying contracts
-- `SIGNER_ONE_PRIVATE_KEY` - Private key for signer 1
-- `SIGNER_TWO_PRIVATE_KEY` - Private key for signer 2
-- `SIGNER_THREE_PRIVATE_KEY` - Private key for signer 3
+**For deployment only:**
 
-## Security Notes
+```env
+DEPLOYER_PRIVATE_KEY=0x...
+SIGNER_ONE_ADDRESS=0x...
+SIGNER_TWO_ADDRESS=0x...
+SIGNER_THREE_ADDRESS=0x...
+```
 
-⚠️ **Never commit `config.ts` with real private keys!**
+**For full flow (deploy + execute):**
 
-- Use environment variables in production
-- Add `config.ts` to `.gitignore` if it contains real keys
-- Consider using a secrets manager for production deployments
+```env
+DEPLOYER_PRIVATE_KEY=0x...
+SIGNER_ONE_PRIVATE_KEY=0x...
+SIGNER_TWO_PRIVATE_KEY=0x...
+SIGNER_THREE_PRIVATE_KEY=0x...
+PERMISSION_ADDRESS=0x...
+```
 
-## Troubleshooting
+Note: If you provide private keys, the deploy script will automatically derive addresses from them, so you don't need to set both.
 
-### "deployed.json not found"
+## Usage
 
-Run `deploy.ts` first to create the deployment file.
+### Deploy Contracts
 
-### "Missing required private keys"
+Deploy MultiSigSigner and GardenSolver contracts to all chains configured in `config.json`:
 
-Ensure all private keys are set in `config.ts` or as environment variables.
+```bash
+tsx cli/deploy.ts
+```
 
-### Forge script errors
+This deploys contracts to each chain, funds GardenSolver with the specified amount, and saves deployment information to `deployed.json`.
 
-Make sure you have:
+### Execute Operations
 
-- Forge installed and in PATH
-- Sufficient balance in deployer account
-- Correct RPC URL in config.json
+After deployment, execute multisig operations (approve tokens, grant permissions) to all deployed chains:
+
+```bash
+tsx cli/execute.ts
+```
+
+Or execute for a specific chain:
+
+```bash
+tsx cli/execute.ts sepolia
+```
+
+This will approve tokens to HTLC contracts and grant permissions to the `PERMISSION_ADDRESS` for all configured HTLC addresses.

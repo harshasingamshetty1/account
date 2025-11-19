@@ -6,6 +6,9 @@ import { join } from "path";
 import { ethers } from "ethers";
 import {
   DEPLOYER_PRIVATE_KEY,
+  SIGNER_ONE_ADDRESS,
+  SIGNER_TWO_ADDRESS,
+  SIGNER_THREE_ADDRESS,
   SIGNER_ONE_PRIVATE_KEY,
   SIGNER_TWO_PRIVATE_KEY,
   SIGNER_THREE_PRIVATE_KEY,
@@ -15,7 +18,7 @@ interface ChainConfig {
   name: string;
   rpc: string;
   htlcs: string[];
-  fundAmount?: string; // Optional: ETH amount to fund GardenSolver (default: 10)
+  fundAmount: string;
 }
 
 interface Config {
@@ -48,7 +51,7 @@ interface DeploymentResults {
   summary: DeploymentSummary;
 }
 
-function deriveAddress(privateKey: string): string {
+function deriveDeployerAddress(privateKey: string): string {
   const wallet = new ethers.Wallet(privateKey);
   return wallet.address;
 }
@@ -160,11 +163,36 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
   console.log(`RPC: ${chain.rpc}`);
   console.log(`${"=".repeat(50)}\n`);
 
-  // Derive addresses from private keys
-  const deployerAddress = deriveAddress(DEPLOYER_PRIVATE_KEY);
-  const signer1Address = deriveAddress(SIGNER_ONE_PRIVATE_KEY);
-  const signer2Address = deriveAddress(SIGNER_TWO_PRIVATE_KEY);
-  const signer3Address = deriveAddress(SIGNER_THREE_PRIVATE_KEY);
+  if (!DEPLOYER_PRIVATE_KEY) {
+    throw new Error("DEPLOYER_PRIVATE_KEY is required for deployment");
+  }
+
+  let signer1Address: string;
+  let signer2Address: string;
+  let signer3Address: string;
+
+  if (SIGNER_ONE_ADDRESS && SIGNER_TWO_ADDRESS && SIGNER_THREE_ADDRESS) {
+    signer1Address = ethers.getAddress(SIGNER_ONE_ADDRESS);
+    signer2Address = ethers.getAddress(SIGNER_TWO_ADDRESS);
+    signer3Address = ethers.getAddress(SIGNER_THREE_ADDRESS);
+  } else if (
+    SIGNER_ONE_PRIVATE_KEY &&
+    SIGNER_TWO_PRIVATE_KEY &&
+    SIGNER_THREE_PRIVATE_KEY
+  ) {
+    signer1Address = deriveDeployerAddress(SIGNER_ONE_PRIVATE_KEY);
+    signer2Address = deriveDeployerAddress(SIGNER_TWO_PRIVATE_KEY);
+    signer3Address = deriveDeployerAddress(SIGNER_THREE_PRIVATE_KEY);
+    console.log(
+      "ℹ️  Signer addresses derived from private keys (using full flow env)"
+    );
+  } else {
+    throw new Error(
+      "Either signer addresses (SIGNER_ONE_ADDRESS, SIGNER_TWO_ADDRESS, SIGNER_THREE_ADDRESS) or signer private keys (SIGNER_ONE_PRIVATE_KEY, SIGNER_TWO_PRIVATE_KEY, SIGNER_THREE_PRIVATE_KEY) are required for deployment."
+    );
+  }
+
+  const deployerAddress = deriveDeployerAddress(DEPLOYER_PRIVATE_KEY);
 
   console.log("📋 Deployment Configuration:");
   console.log(`   Deployer: ${deployerAddress}`);
@@ -173,7 +201,7 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
   console.log(`   Signer 3: ${signer3Address}`);
   console.log("");
 
-  const fundAmountEth = chain.fundAmount!;
+  const fundAmountEth = chain.fundAmount;
   const fundAmountWei = ethers.parseEther(fundAmountEth).toString();
 
   const env = {
@@ -183,7 +211,7 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     SIGNER1_ADDRESS: signer1Address,
     SIGNER2_ADDRESS: signer2Address,
     SIGNER3_ADDRESS: signer3Address,
-    FUND_AMOUNT_WEI: fundAmountWei, // Amount in wei (Solidity expects uint256)
+    FUND_AMOUNT_WEI: fundAmountWei, //@dev Amount in wei (Solidity expects uint256)
     MULTISIG_THRESHOLD: "2", // 2-of-3
   };
 
@@ -205,7 +233,6 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
       stdio: "pipe",
     });
 
-    // Get chain ID from RPC
     const chainId = await getChainId(chain.rpc);
     console.log(`   Chain ID: ${chainId}`);
 
@@ -216,7 +243,7 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
       scriptName
     );
 
-    // Parse key hashes from console.log output (not available in broadcast artifacts)
+    // need to parse key hashes from console.log output (not available in broadcast artifacts)
     const signer1KeyHash = parseKeyHash(output, "Signer1 KeyHash");
     const signer2KeyHash = parseKeyHash(output, "Signer2 KeyHash");
     const signer3KeyHash = parseKeyHash(output, "Signer3 KeyHash");

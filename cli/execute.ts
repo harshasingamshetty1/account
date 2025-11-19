@@ -7,7 +7,20 @@ import {
   DEPLOYER_PRIVATE_KEY,
   SIGNER_ONE_PRIVATE_KEY,
   SIGNER_TWO_PRIVATE_KEY,
+  PERMISSION_ADDRESS,
 } from "./config";
+
+// Validate required env vars for execution
+if (
+  !DEPLOYER_PRIVATE_KEY ||
+  !SIGNER_ONE_PRIVATE_KEY ||
+  !SIGNER_TWO_PRIVATE_KEY ||
+  !PERMISSION_ADDRESS
+) {
+  throw new Error(
+    "Missing required configuration for execution. Please set DEPLOYER_PRIVATE_KEY, SIGNER_ONE_PRIVATE_KEY, SIGNER_TWO_PRIVATE_KEY, and PERMISSION_ADDRESS in .env file."
+  );
+}
 
 interface DeployedContracts {
   chain: string;
@@ -75,6 +88,8 @@ async function executeGrantPermissions(
 ): Promise<void> {
   console.log("\n========================================");
   console.log("Step 2: Grant HTLC Permissions (Multisig)");
+  console.log("========================================");
+  console.log(`Granting permissions to: ${PERMISSION_ADDRESS}`);
   console.log("========================================\n");
 
   const env = {
@@ -82,7 +97,7 @@ async function executeGrantPermissions(
     GARDEN_SOLVER: deployed.gardenSolver,
     MULTISIG_SIGNER: deployed.multiSigSigner,
     HTLC_ADDRESSES: chain.htlcs.join(","),
-    SIGNER_ADDRESS: deployed.signer1Address, // Grant permissions to signer1
+    SIGNER_ADDRESS: PERMISSION_ADDRESS,
     SIGNER1_PRIVATE_KEY: SIGNER_ONE_PRIVATE_KEY,
     SIGNER2_PRIVATE_KEY: SIGNER_TWO_PRIVATE_KEY,
     DEPLOYER_PRIVATE_KEY: DEPLOYER_PRIVATE_KEY,
@@ -167,14 +182,60 @@ async function main() {
   const configPath = join(__dirname, "config.json");
   const config: Config = JSON.parse(readFileSync(configPath, "utf-8"));
 
-  // Get chain name from command line or use first deployed chain
-  const chainName =
-    process.argv[2] || Object.keys(deploymentResults.deployments)[0];
+  // only specific chain granting else all
+  const chainNameArg = process.argv[2];
+  const processAllChains = chainNameArg === "all" || !chainNameArg;
 
-  if (!chainName) {
-    throw new Error("No deployed chains found in deployed.json");
+  if (processAllChains) {
+    // Process all deployed chains
+    const deployedChains = Object.keys(deploymentResults.deployments);
+    if (deployedChains.length === 0) {
+      throw new Error("No deployed chains found in deployed.json");
+    }
+
+    console.log("\n========================================");
+    console.log("Executing Multisig Operations for ALL Chains");
+    console.log("========================================");
+    console.log(`Permission Address: ${PERMISSION_ADDRESS}`);
+    console.log(`Total chains: ${deployedChains.length}`);
+    console.log("========================================\n");
+
+    for (let i = 0; i < deployedChains.length; i++) {
+      const chainName = deployedChains[i];
+      const deployed = deploymentResults.deployments[chainName];
+      const chain = config.chains.find((c) => c.name === chainName);
+
+      if (!chain) {
+        console.warn(
+          `⚠️  Chain ${chainName} not found in config.json, skipping...`
+        );
+        continue;
+      }
+
+      console.log(
+        `\n[${i + 1}/${deployedChains.length}] Processing chain: ${chainName}`
+      );
+      console.log(`GardenSolver: ${deployed.gardenSolver}`);
+      console.log(`HTLC Addresses: ${chain.htlcs.join(", ")}`);
+
+      try {
+        await executeApproveTokens(chain, deployed);
+        await executeGrantPermissions(chain, deployed);
+        console.log(`✅ Successfully processed ${chainName}\n`);
+      } catch (error: any) {
+        console.error(`❌ Failed to process ${chainName}: ${error.message}\n`);
+        // Continue with next chain
+      }
+    }
+
+    console.log("\n========================================");
+    console.log("All Chains Processing Completed!");
+    console.log("========================================\n");
+    return;
   }
 
+  // Process single chain
+  const chainName = chainNameArg;
   const deployed = deploymentResults.deployments[chainName];
   if (!deployed) {
     throw new Error(
@@ -195,6 +256,7 @@ async function main() {
   console.log("========================================");
   console.log(`Chain: ${chain.name}`);
   console.log(`GardenSolver: ${deployed.gardenSolver}`);
+  console.log(`Permission Address: ${PERMISSION_ADDRESS}`);
   console.log(`HTLC Addresses: ${chain.htlcs.join(", ")}`);
   console.log("========================================\n");
 
@@ -202,10 +264,10 @@ async function main() {
   await executeGrantPermissions(chain, deployed);
 
   // Step 3: Initiate HTLC (testing)
-  // /*
+  /*
   const redeemerAddress = "0x9596ce01462aa3b46ae5aa8a0d550095de10fcfa"; // Address that can redeem the HTLC
   const timelock = 1000000; // Block number timelock
-  const amount = "500";
+  const amount = "500"; // wbtc tested in testnet sepolia w/ decimals 8
   const secretHash =
     "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"; // keccak256 hash of the secret
 
@@ -217,13 +279,13 @@ async function main() {
     amount,
     secretHash
   );
-  // */
+   */
 
   console.log("\n========================================");
   console.log("All Operations Completed Successfully!");
   console.log("========================================");
   console.log("✓ Tokens approved to HTLC contracts");
-  console.log("✓ HTLC permissions granted to signer1");
+  console.log(`✓ HTLC permissions granted to ${PERMISSION_ADDRESS}`);
   console.log("========================================\n");
 }
 
