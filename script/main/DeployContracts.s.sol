@@ -13,8 +13,7 @@ import {IthacaAccount} from "../../src/IthacaAccount.sol";
 ///      forge script script/main/DeployContracts.s.sol --rpc-url $RPC_URL --broadcast
 ///
 ///      Required environment variables:
-///      - DEPLOYER: Address of deployer (derived from DEPLOYER_PRIVATE_KEY)
-///      - DEPLOYER_PRIVATE_KEY: Private key to deploy contracts
+///      - DEPLOYER_PRIVATE_KEY: Private key to deploy contracts (deployer address is derived from this)
 ///      - SIGNER1_ADDRESS: Address of signer 1
 ///      - SIGNER2_ADDRESS: Address of signer 2
 ///      - SIGNER3_ADDRESS: Address of signer 3
@@ -22,8 +21,8 @@ import {IthacaAccount} from "../../src/IthacaAccount.sol";
 ///      - MULTISIG_THRESHOLD: Multisig threshold (e.g., 2 for 2-of-3)
 contract DeployContracts is Script {
     function run() public {
-        address deployer = vm.envAddress("DEPLOYER");
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
         address signer1 = vm.envAddress("SIGNER1_ADDRESS");
         address signer2 = vm.envAddress("SIGNER2_ADDRESS");
         address signer3 = vm.envAddress("SIGNER3_ADDRESS");

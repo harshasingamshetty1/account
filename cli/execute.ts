@@ -41,6 +41,7 @@ interface ChainConfig {
   rpc: string;
   htlcs: string[];
   fundAmount?: string; // Optional: ETH amount to fund GardenSolver
+  useNativeToken?: boolean; // Optional: true if chain uses native token (no approval needed)
 }
 
 interface Config {
@@ -105,20 +106,25 @@ async function executeGrantPermissions(
 
   const scriptPath = join(
     __dirname,
-    "../script/main/GrantHTLCPermissions.s.sol"
+    "../script/main/AuthorizeExecutorAndGrantPermissions.s.sol"
   );
   const command = `forge script ${scriptPath} --rpc-url ${chain.rpc} --broadcast -vvv`;
 
-  console.log("Executing permission grant...");
+  console.log("Executing authorize executor and grant permissions...");
   try {
     execSync(command, {
       env,
       encoding: "utf-8",
       stdio: "inherit",
     });
-    console.log("\n[OK] Permissions granted successfully!\n");
+    console.log(
+      "\n[OK] Authorize executor and grant permissions successfully!\n"
+    );
   } catch (error: any) {
-    console.error("Permission grant failed:", error.message);
+    console.error(
+      "Authorize executor and grant permissions failed:",
+      error.message
+    );
     throw error;
   }
 }
@@ -219,7 +225,12 @@ async function main() {
       console.log(`HTLC Addresses: ${chain.htlcs.join(", ")}`);
 
       try {
-        await executeApproveTokens(chain, deployed);
+        // Skip token approval for native token chains
+        if (!chain.useNativeToken) {
+          await executeApproveTokens(chain, deployed);
+        } else {
+          console.log(`\n⏭️  Skipping token approval (native token chain)\n`);
+        }
         await executeGrantPermissions(chain, deployed);
         console.log(`✅ Successfully processed ${chainName}\n`);
       } catch (error: any) {
@@ -260,11 +271,16 @@ async function main() {
   console.log(`HTLC Addresses: ${chain.htlcs.join(", ")}`);
   console.log("========================================\n");
 
-  await executeApproveTokens(chain, deployed);
+  // Skip token approval for native token chains
+  if (!chain.useNativeToken) {
+    await executeApproveTokens(chain, deployed);
+  } else {
+    console.log(`\n⏭️  Skipping token approval (native token chain)\n`);
+  }
   await executeGrantPermissions(chain, deployed);
 
   // Step 3: Initiate HTLC (testing)
-  /*
+  // /*
   const redeemerAddress = "0x9596ce01462aa3b46ae5aa8a0d550095de10fcfa"; // Address that can redeem the HTLC
   const timelock = 1000000; // Block number timelock
   const amount = "500"; // wbtc tested in testnet sepolia w/ decimals 8
@@ -279,12 +295,16 @@ async function main() {
     amount,
     secretHash
   );
-   */
+  //  */
 
   console.log("\n========================================");
   console.log("All Operations Completed Successfully!");
   console.log("========================================");
-  console.log("✓ Tokens approved to HTLC contracts");
+  if (!chain.useNativeToken) {
+    console.log("✓ Tokens approved to HTLC contracts");
+  } else {
+    console.log("✓ Token approval skipped (native token chain)");
+  }
   console.log(`✓ HTLC permissions granted to ${PERMISSION_ADDRESS}`);
   console.log("========================================\n");
 }

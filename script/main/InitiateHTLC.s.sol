@@ -69,6 +69,8 @@ contract InitiateHTLC is Script {
             )
         });
 
+        console.log("data:", vm.toString(calls[0].data));
+
         // Get nonce and compute digest
         uint256 nonce = solver.getNonce(0);
         bytes32 digest = solver.computeDigest(calls, nonce);

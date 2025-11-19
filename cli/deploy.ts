@@ -206,7 +206,6 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
 
   const env = {
     ...process.env,
-    DEPLOYER: deployerAddress,
     DEPLOYER_PRIVATE_KEY: DEPLOYER_PRIVATE_KEY,
     SIGNER1_ADDRESS: signer1Address,
     SIGNER2_ADDRESS: signer2Address,
@@ -227,10 +226,12 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
   console.log(`   Command: ${command}\n`);
 
   try {
+    // Capture both stdout and stderr
     const output = execSync(command, {
       env,
       encoding: "utf-8",
       stdio: "pipe",
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
     });
 
     const chainId = await getChainId(chain.rpc);
@@ -269,13 +270,27 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     };
   } catch (error: any) {
     console.error("❌ Deployment failed:");
-    if (error.stdout) {
-      console.error("STDOUT:", error.stdout);
+    const errorMessage = error.message || "Unknown error";
+    const stdout = error.stdout || "";
+    const stderr = error.stderr || "";
+
+    // Show the actual error output
+    if (stdout) {
+      console.error("\n--- Forge Output (STDOUT) ---");
+      console.error(stdout);
     }
-    if (error.stderr) {
-      console.error("STDERR:", error.stderr);
+    if (stderr) {
+      console.error("\n--- Forge Output (STDERR) ---");
+      console.error(stderr);
     }
-    throw error;
+
+    // Create a more informative error
+    const fullError = new Error(
+      `Deployment failed: ${errorMessage}\n${
+        stdout ? `\nOutput:\n${stdout}` : ""
+      }${stderr ? `\nErrors:\n${stderr}` : ""}`
+    );
+    throw fullError;
   }
 }
 
@@ -316,7 +331,11 @@ async function main() {
       results.summary.successful++;
     } catch (error: any) {
       console.error(`\n❌ Failed to deploy to ${chain.name}:`);
-      console.error(`   ${error.message || "Unknown error"}`);
+      const errorMsg = error.message || error.toString() || "Unknown error";
+      // Truncate very long error messages
+      const displayMsg =
+        errorMsg.length > 500 ? errorMsg.substring(0, 500) + "..." : errorMsg;
+      console.error(`   ${displayMsg}`);
       results.summary.failed++;
 
       // Continue with next chain instead of stopping
