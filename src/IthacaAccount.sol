@@ -595,10 +595,10 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
 
     /// @dev Checks current nonce and increments the sequence for the `seqKey`.
     function checkAndIncrementNonce(uint256 nonce) public payable virtual {
-        if (msg.sender != ORCHESTRATOR) {
-            revert Unauthorized();
-        }
-        LibNonce.checkAndIncrement(_getAccountStorage().nonceSeqs, nonce);
+        // if (msg.sender != ORCHESTRATOR) {
+        //     revert Unauthorized();
+        // }
+        // LibNonce.checkAndIncrement(_getAccountStorage().nonceSeqs, nonce);
     }
 
     /// @dev Pays `paymentAmount` of `paymentToken` to the `paymentRecipient`.
@@ -608,64 +608,64 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         bytes32 intentDigest,
         bytes calldata encodedIntent
     ) public virtual {
-        Intent calldata intent;
-        // Equivalent Solidity Code: (In the assembly intent is stored in calldata, instead of memory)
-        // Intent memory intent = abi.decode(encodedIntent, (Intent));
-        // Gas Savings:
-        // ~2.5-3k gas for general cases, by avoiding duplicated bounds checks, and avoiding writing the intent to memory.
-        // Extracts the Intent from the calldata bytes, with minimal checks.
-        // NOTE: Only use this implementation if you are sure that the encodedIntent is coming from a trusted source.
-        // We can avoid standard bound checks here, because the Orchestrator already does these checks when it interacts with ALL the fields in the intent using solidity.
-        assembly ("memory-safe") {
-            let t := calldataload(encodedIntent.offset)
-            intent := add(t, encodedIntent.offset)
-            // Bounds check. We don't need to explicitly check the fields here.
-            // In the self call functions, we will use regular Solidity to access the
-            // dynamic fields like `signature`, which generate the implicit bounds checks.
-            if or(shr(64, t), lt(encodedIntent.length, 0x20)) { revert(0x00, 0x00) }
-        }
+        // Intent calldata intent;
+        // // Equivalent Solidity Code: (In the assembly intent is stored in calldata, instead of memory)
+        // // Intent memory intent = abi.decode(encodedIntent, (Intent));
+        // // Gas Savings:
+        // // ~2.5-3k gas for general cases, by avoiding duplicated bounds checks, and avoiding writing the intent to memory.
+        // // Extracts the Intent from the calldata bytes, with minimal checks.
+        // // NOTE: Only use this implementation if you are sure that the encodedIntent is coming from a trusted source.
+        // // We can avoid standard bound checks here, because the Orchestrator already does these checks when it interacts with ALL the fields in the intent using solidity.
+        // assembly ("memory-safe") {
+        //     let t := calldataload(encodedIntent.offset)
+        //     intent := add(t, encodedIntent.offset)
+        //     // Bounds check. We don't need to explicitly check the fields here.
+        //     // In the self call functions, we will use regular Solidity to access the
+        //     // dynamic fields like `signature`, which generate the implicit bounds checks.
+        //     if or(shr(64, t), lt(encodedIntent.length, 0x20)) { revert(0x00, 0x00) }
+        // }
 
-        if (!LibBit.and(
-                msg.sender == ORCHESTRATOR,
-                LibBit.or(intent.eoa == address(this), intent.payer == address(this))
-            )) {
-            revert Unauthorized();
-        }
+        // if (!LibBit.and(
+        //         msg.sender == ORCHESTRATOR,
+        //         LibBit.or(intent.eoa == address(this), intent.payer == address(this))
+        //     )) {
+        //     revert Unauthorized();
+        // }
 
-        // If this account is the paymaster, validate the paymaster signature.
-        if (intent.payer == address(this)) {
-            if (_getAccountStorage().paymasterNonces[intentDigest]) {
-                revert PaymasterNonceError();
-            }
-            _getAccountStorage().paymasterNonces[intentDigest] = true;
+        // // If this account is the paymaster, validate the paymaster signature.
+        // if (intent.payer == address(this)) {
+        //     if (_getAccountStorage().paymasterNonces[intentDigest]) {
+        //         revert PaymasterNonceError();
+        //     }
+        //     _getAccountStorage().paymasterNonces[intentDigest] = true;
 
-            (bool isValid, bytes32 k) =
-                unwrapAndValidateSignature(intentDigest, intent.paymentSignature);
+        //     (bool isValid, bytes32 k) =
+        //         unwrapAndValidateSignature(intentDigest, intent.paymentSignature);
 
-            // Set the target key hash to the payer's.
-            keyHash = k;
+        //     // Set the target key hash to the payer's.
+        //     keyHash = k;
 
-            // If this is a simulation, signature validation errors are skipped.
-            /// @dev to simulate a paymaster, state override the balance of the relayer
-            /// to type(uint192).max.
-            if (tx.origin.balance >= type(uint192).max) {
-                isValid = true;
-            }
+        //     // If this is a simulation, signature validation errors are skipped.
+        //     /// @dev to simulate a paymaster, state override the balance of the relayer
+        //     /// to type(uint192).max.
+        //     if (tx.origin.balance >= type(uint192).max) {
+        //         isValid = true;
+        //     }
 
-            if (!isValid) {
-                revert Unauthorized();
-            }
-        }
+        //     if (!isValid) {
+        //         revert Unauthorized();
+        //     }
+        // }
 
-        TokenTransferLib.safeTransfer(intent.paymentToken, intent.paymentRecipient, paymentAmount);
-        // Increase spend.
-        if (!(keyHash == bytes32(0) || _isSuperAdmin(keyHash))) {
-            SpendStorage storage spends = _getGuardedExecutorKeyStorage(keyHash).spends;
-            _incrementSpent(spends.spends[intent.paymentToken], intent.paymentToken, paymentAmount);
-        }
+        // TokenTransferLib.safeTransfer(intent.paymentToken, intent.paymentRecipient, paymentAmount);
+        // // Increase spend.
+        // if (!(keyHash == bytes32(0) || _isSuperAdmin(keyHash))) {
+        //     SpendStorage storage spends = _getGuardedExecutorKeyStorage(keyHash).spends;
+        //     _incrementSpent(spends.spends[intent.paymentToken], intent.paymentToken, paymentAmount);
+        // }
 
-        // Done to avoid compiler warnings.
-        intentDigest = intentDigest;
+        // // Done to avoid compiler warnings.
+        // intentDigest = intentDigest;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -679,18 +679,18 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         override
     {
         // Orchestrator workflow.
-        if (msg.sender == ORCHESTRATOR) {
-            // opdata
-            // 0x00: keyHash
-            if (opData.length != 0x20) revert OpDataError();
-            bytes32 _keyHash = LibBytes.loadCalldata(opData, 0x00);
+        // if (msg.sender == ORCHESTRATOR) {
+        //     // opdata
+        //     // 0x00: keyHash
+        //     if (opData.length != 0x20) revert OpDataError();
+        //     bytes32 _keyHash = LibBytes.loadCalldata(opData, 0x00);
 
-            LibTStack.TStack(_KEYHASH_STACK_TRANSIENT_SLOT).push(_keyHash);
-            _execute(calls, _keyHash);
-            LibTStack.TStack(_KEYHASH_STACK_TRANSIENT_SLOT).pop();
+        //     LibTStack.TStack(_KEYHASH_STACK_TRANSIENT_SLOT).push(_keyHash);
+        //     _execute(calls, _keyHash);
+        //     LibTStack.TStack(_KEYHASH_STACK_TRANSIENT_SLOT).pop();
 
-            return;
-        }
+        //     return;
+        // }
 
         // Simple workflow without `opData`.
         if (opData.length == uint256(0)) {

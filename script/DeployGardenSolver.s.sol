@@ -123,7 +123,6 @@ contract DeployGardenSolver is Script {
 
         console.log("\nGardenSolver Configuration:");
         console.log("- Balance:", address(gardenSolver).balance / 1e18, "ETH");
-        console.log("- Cooldown Period:", gardenSolver.cooldownPeriod(), "seconds");
 
         console.log("\nAuthorized Signers:");
         console.log("- Signer 1:", signer1);
