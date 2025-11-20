@@ -21,7 +21,6 @@ contract GardenSolver is IthacaAccount, Pausable {
 
     event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
 
-    // @note add cooldown period
     constructor(
         address orchestrator,
         Key[] memory initialKeys,
@@ -87,7 +86,7 @@ contract GardenSolver is IthacaAccount, Pausable {
     function execute(bytes32, bytes calldata) public payable virtual override {}
 
     function execute(Call[] calldata calls, bytes calldata opData) external whenNotPaused {
-        _execute(bytes32(0), opData, calls, opData); // @note the first two values are placeholders, dead values that are not used in _execute
+        _execute(bytes32(0), opData, calls, opData); // @note the first two values are placeholders for IthacaAccount
     }
 
     function withdraw(address recipient, address token, uint256 amount) external onlyThis {
