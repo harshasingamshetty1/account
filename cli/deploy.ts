@@ -9,7 +9,6 @@ import {
   SIGNER_ONE_ADDRESS,
   SIGNER_TWO_ADDRESS,
   SIGNER_THREE_ADDRESS,
-  SIGNER_ONE_PRIVATE_KEY,
   SIGNER_TWO_PRIVATE_KEY,
   SIGNER_THREE_PRIVATE_KEY,
 } from "./config";
@@ -167,28 +166,32 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     throw new Error("DEPLOYER_PRIVATE_KEY is required for deployment");
   }
 
-  let signer1Address: string;
+  // Always use SIGNER_ADDRESS (hardware wallet) as signer1 - required
+  const SIGNER_ADDRESS = process.env.SIGNER_ADDRESS || SIGNER_ONE_ADDRESS;
+  if (!SIGNER_ADDRESS) {
+    throw new Error(
+      "SIGNER_ADDRESS (or SIGNER_ONE_ADDRESS) is required for deployment. This will be used as Signer 1 (hardware wallet address)."
+    );
+  }
+
+  const signer1Address = ethers.getAddress(SIGNER_ADDRESS);
+  console.log(
+    `ℹ️  Using SIGNER_ADDRESS (hardware wallet) as Signer 1: ${signer1Address}`
+  );
+
   let signer2Address: string;
   let signer3Address: string;
 
-  if (SIGNER_ONE_ADDRESS && SIGNER_TWO_ADDRESS && SIGNER_THREE_ADDRESS) {
-    signer1Address = ethers.getAddress(SIGNER_ONE_ADDRESS);
+  // Get remaining signers
+  if (SIGNER_TWO_ADDRESS && SIGNER_THREE_ADDRESS) {
     signer2Address = ethers.getAddress(SIGNER_TWO_ADDRESS);
     signer3Address = ethers.getAddress(SIGNER_THREE_ADDRESS);
-  } else if (
-    SIGNER_ONE_PRIVATE_KEY &&
-    SIGNER_TWO_PRIVATE_KEY &&
-    SIGNER_THREE_PRIVATE_KEY
-  ) {
-    signer1Address = deriveDeployerAddress(SIGNER_ONE_PRIVATE_KEY);
+  } else if (SIGNER_TWO_PRIVATE_KEY && SIGNER_THREE_PRIVATE_KEY) {
     signer2Address = deriveDeployerAddress(SIGNER_TWO_PRIVATE_KEY);
     signer3Address = deriveDeployerAddress(SIGNER_THREE_PRIVATE_KEY);
-    console.log(
-      "ℹ️  Signer addresses derived from private keys (using full flow env)"
-    );
   } else {
     throw new Error(
-      "Either signer addresses (SIGNER_ONE_ADDRESS, SIGNER_TWO_ADDRESS, SIGNER_THREE_ADDRESS) or signer private keys (SIGNER_ONE_PRIVATE_KEY, SIGNER_TWO_PRIVATE_KEY, SIGNER_THREE_PRIVATE_KEY) are required for deployment."
+      "SIGNER_TWO_ADDRESS and SIGNER_THREE_ADDRESS (or their private keys) are required for deployment."
     );
   }
 
@@ -211,7 +214,7 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     SIGNER2_ADDRESS: signer2Address,
     SIGNER3_ADDRESS: signer3Address,
     FUND_AMOUNT_WEI: fundAmountWei, //@dev Amount in wei (Solidity expects uint256)
-    MULTISIG_THRESHOLD: "2", // 2-of-3
+    MULTISIG_THRESHOLD: "1", // 2-of-3
   };
 
   console.log(

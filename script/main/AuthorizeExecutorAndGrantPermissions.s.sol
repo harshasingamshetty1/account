@@ -8,32 +8,47 @@ import {ERC7821} from "solady/accounts/ERC7821.sol";
 import {GuardedExecutor} from "../../src/GuardedExecutor.sol";
 
 /// @title AuthorizeExecutorAndGrantPermissions
-/// @notice Script to authorize executor key and grant HTLC permissions via multisig
-/// @dev Usage:
+/// @notice Script to authorize executor key and grant HTLC permissions via hardware wallet
+/// @dev Usage (Multi-step workflow for hardware wallets):
+///
+///      Step 1 - Get authorization digest to sign:
+///      forge script script/main/AuthorizeExecutorAndGrantPermissions.s.sol --rpc-url $RPC_URL
+///
+///      Step 2 - Sign the authorization digest with Ledger:
+///      cast wallet sign --ledger <AUTH_DIGEST_FROM_STEP_1>
+///      export SIGNATURE_AUTH=<SIGNATURE_FROM_STEP_2>
+///
+///      Step 3 - Run again to get permissions digest:
+///      forge script script/main/AuthorizeExecutorAndGrantPermissions.s.sol --rpc-url $RPC_URL --broadcast
+///
+///      Step 4 - Sign the permissions digest with Ledger:
+///      cast wallet sign --ledger <PERM_DIGEST_FROM_STEP_3>
+///      export SIGNATURE_PERM=<SIGNATURE_FROM_STEP_4>
+///
+///      Step 5 - Final broadcast:
 ///      forge script script/main/AuthorizeExecutorAndGrantPermissions.s.sol --rpc-url $RPC_URL --broadcast
 ///
 ///      Required environment variables:
 ///      - GARDEN_SOLVER: Address of GardenSolver contract
-///      - MULTISIG_SIGNER: Address of MultiSigSigner contract
 ///      - HTLC_ADDRESSES: Comma-separated list of HTLC addresses (or single address)
-///      - EXECUTOR_ADDRESS: Address of executor to authorize and grant permissions to
-///      - SIGNER1_PRIVATE_KEY: Private key of multisig signer 1
-///      - SIGNER2_PRIVATE_KEY: Private key of multisig signer 2
-///      - DEPLOYER_PRIVATE_KEY: Private key to broadcast transaction
+///      - PERMISSION_ADDRESS: Address of executor to authorize and grant permissions to
+///      - SIGNER_ADDRESS: Address of the signer (hardware wallet address)
+///      - SIGNATURE_AUTH: (Optional) Signature for authorization step
+///      - SIGNATURE_PERM: (Optional) Signature for permissions step
+///      - DEPLOYER_PRIVATE_KEY: Private key to broadcast transaction (required)
 contract AuthorizeExecutorAndGrantPermissions is Script {
     function run() public {
         // Load configuration from environment variables
         address gardenSolver = vm.envAddress("GARDEN_SOLVER");
-        address multiSigSigner = vm.envAddress("MULTISIG_SIGNER");
         string memory htlcAddressesStr = vm.envString("HTLC_ADDRESSES");
         address executorAddress = vm.envAddress("PERMISSION_ADDRESS");
 
-        uint256 signer1PrivateKey = vm.envUint("SIGNER1_PRIVATE_KEY");
-        uint256 signer2PrivateKey = vm.envUint("SIGNER2_PRIVATE_KEY");
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-
-        address signer1 = vm.addr(signer1PrivateKey);
-        address signer2 = vm.addr(signer2PrivateKey);
+        address signer;
+        try vm.envAddress("SIGNER_ADDRESS") returns (address addr) {
+            signer = addr;
+        } catch {
+            revert("SIGNER_ADDRESS environment variable is required");
+        }
 
         // Parse HTLC addresses (comma-separated or single)
         address[] memory htlcAddresses = _parseAddresses(htlcAddressesStr);
@@ -43,6 +58,7 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
         console.log("========================================");
         console.log("GardenSolver:", gardenSolver);
         console.log("Executor Address:", executorAddress);
+        console.log("Signer Address:", signer);
         console.log("HTLC Addresses:");
         for (uint256 i = 0; i < htlcAddresses.length; i++) {
             console.log("  HTLC", i);
@@ -59,31 +75,34 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
             isSuperAdmin: false,
             publicKey: abi.encode(executorAddress)
         });
-        IthacaAccount.Key memory signer1KeyStruct = IthacaAccount.Key({
+        IthacaAccount.Key memory signerKey = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.Secp256k1,
             isSuperAdmin: false,
-            publicKey: abi.encode(signer1)
-        });
-        IthacaAccount.Key memory signer2KeyStruct = IthacaAccount.Key({
-            expiry: 0,
-            keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: false,
-            publicKey: abi.encode(signer2)
-        });
-        IthacaAccount.Key memory multisigKey = IthacaAccount.Key({
-            expiry: 0,
-            keyType: IthacaAccount.KeyType.External,
-            isSuperAdmin: true,
-            publicKey: abi.encodePacked(multiSigSigner, bytes12(0))
+            publicKey: abi.encode(signer)
         });
 
         bytes32 executorKeyHash = solver.hash(executorKey);
-        bytes32 signer1KeyHash = solver.hash(signer1KeyStruct);
-        bytes32 signer2KeyHash = solver.hash(signer2KeyStruct);
-        bytes32 multisigKeyHash = solver.hash(multisigKey);
+        bytes32 signerKeyHash = solver.hash(signerKey);
+
+        // Get multisig key hash from environment (from deployed.json)
+        bytes32 multisigKeyHash;
+        try vm.envBytes32("MULTISIG_KEY_HASH") returns (bytes32 hash) {
+            multisigKeyHash = hash;
+        } catch {
+            // Compute multisig key hash if not provided
+            address multiSigSigner = vm.envAddress("MULTISIG_SIGNER");
+            IthacaAccount.Key memory multisigKey = IthacaAccount.Key({
+                expiry: 0,
+                keyType: IthacaAccount.KeyType.External,
+                isSuperAdmin: true,
+                publicKey: abi.encodePacked(multiSigSigner, bytes12(0))
+            });
+            multisigKeyHash = solver.hash(multisigKey);
+        }
 
         console.log("Executor KeyHash:", vm.toString(executorKeyHash));
+        console.log("Signer KeyHash:", vm.toString(signerKeyHash));
         console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("");
 
@@ -93,6 +112,9 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
         );
         bytes4 redeemSel = bytes4(keccak256("redeem(bytes32,bytes)"));
         bytes4 refundSel = bytes4(keccak256("refund(bytes32)"));
+        bytes4 instantRefundSel = bytes4(
+            keccak256("instantRefund(bytes32,bytes)")
+        );
 
         // Step 1: Authorize executor key
         console.log("Step 1: Authorizing executor key...");
@@ -106,58 +128,129 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
             )
         });
 
+        // Get current nonce and compute digest
         uint256 authNonce = solver.getNonce(0);
         bytes32 authDigest = solver.computeDigest(authCalls, authNonce);
 
-        // Sign with signer1 and signer2
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(
-            signer1PrivateKey,
-            authDigest
-        );
-        bytes memory authSig1 = abi.encodePacked(
-            r1,
-            s1,
-            v1,
-            signer1KeyHash,
-            uint8(0)
-        );
+        console.log("\n========================================");
+        console.log("STEP 1: AUTHORIZATION - SIGNING INFORMATION");
+        console.log("========================================");
+        console.log("Digest to sign:", vm.toString(authDigest));
+        console.log("Signer address:", signer);
+        console.log("Signer KeyHash:", vm.toString(signerKeyHash));
+        console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
+        console.log("========================================\n");
 
-        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(
-            signer2PrivateKey,
-            authDigest
-        );
-        bytes memory authSig2 = abi.encodePacked(
-            r2,
-            s2,
-            v2,
-            signer2KeyHash,
-            uint8(0)
-        );
+        bytes memory authSignature;
+        bool authSignatureReady;
+        string memory authSigHex;
+        bool authSignatureProvided;
+        try vm.envString("SIGNATURE_AUTH") returns (string memory sigHexValue) {
+            authSigHex = sigHexValue;
+            authSignatureProvided = true;
+        } catch {}
 
-        // Create multisig signature for authorization
-        bytes[] memory authInnerSignatures = new bytes[](2);
-        authInnerSignatures[0] = authSig1;
-        authInnerSignatures[1] = authSig2;
+        if (authSignatureProvided) {
+            // Parse the signature: format is 0x + 130 hex chars
+            bytes memory sigBytes = vm.parseBytes(authSigHex);
+            require(sigBytes.length == 65, "Signature must be 65 bytes");
 
-        bytes memory authMultisigSignature = abi.encodePacked(
-            abi.encode(authInnerSignatures),
-            multisigKeyHash,
-            uint8(0)
-        );
+            uint8 v;
+            bytes32 r;
+            bytes32 s;
+            assembly {
+                r := mload(add(sigBytes, 0x20))
+                s := mload(add(sigBytes, 0x40))
+                v := byte(0, mload(add(sigBytes, 0x60)))
+            }
+
+            // Calculate the EIP-191 "Prefixed" Hash
+            bytes32 ethSignedMessageHash = keccak256(
+                abi.encodePacked("\x19Ethereum Signed Message:\n32", authDigest)
+            );
+
+            // Recover the address using the PREFIXED hash
+            address recoveredAddress = ecrecover(ethSignedMessageHash, v, r, s);
+            address recoveredAddressAlt = address(0);
+
+            // Handle EIP-2093 malleability (v=27 vs v=28)
+            if (recoveredAddress != signer) {
+                uint8 vAlt = (v == 27) ? 28 : 27;
+                recoveredAddressAlt = ecrecover(
+                    ethSignedMessageHash,
+                    vAlt,
+                    r,
+                    s
+                );
+            }
+
+            bool isMatch = (recoveredAddress == signer) ||
+                (recoveredAddressAlt == signer);
+
+            // Fix 'v' if the alternate was the correct one
+            if (recoveredAddressAlt == signer && recoveredAddress != signer) {
+                v = (v == 27) ? 28 : 27;
+            }
+
+            require(
+                isMatch,
+                "Signature verification failed: Signer does not match (EIP-191 check)."
+            );
+
+            // Pack the signer signature: r + s + v + signerKeyHash + prehashFlag(0)
+            bytes memory signerSig = abi.encodePacked(
+                r,
+                s,
+                v,
+                signerKeyHash,
+                uint8(0)
+            );
+
+            // Wrap in multisig format: abi.encode(bytes[] innerSigs) || multisigKeyHash || uint8(0)
+            // Since threshold = 1, we only need 1 signature
+            bytes[] memory innerSignatures = new bytes[](1);
+            innerSignatures[0] = signerSig;
+
+            // Pack multisig signature: abi.encode(innerSignatures) || multisigKeyHash || uint8(0)
+            authSignature = abi.encodePacked(
+                abi.encode(innerSignatures),
+                multisigKeyHash,
+                uint8(0)
+            );
+            authSignatureReady = true;
+        }
+
+        if (!authSignatureReady) {
+            console.log("\n========================================");
+            console.log("STEP 1: GET DIGEST TO SIGN (AUTHORIZATION)");
+            console.log("========================================");
+            console.log("Please sign the digest with your Ledger:");
+            console.log("1. Copy the digest above.");
+            console.log("2. Run this command (NO --raw flag):");
+            console.log("");
+            console.log(
+                "   cast wallet sign --ledger",
+                vm.toString(authDigest)
+            );
+            console.log("");
+            console.log("3. Export the result:");
+            console.log("   export SIGNATURE_AUTH=<result>");
+            console.log("4. Run this script again with --broadcast");
+            console.log("========================================\n");
+            return;
+        }
 
         // Execute authorization
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        solver.execute(
-            authCalls,
-            abi.encodePacked(authNonce, authMultisigSignature)
-        );
+        solver.execute(authCalls, abi.encodePacked(authNonce, authSignature));
         console.log("[OK] Executor key authorized!\n");
 
         // Step 2: Grant permissions to executor
         console.log("Step 2: Granting HTLC permissions to executor...");
 
         // Create calls for all HTLC addresses (3 functions per HTLC) + 1 for native token spend limit
-        uint256 numCalls = htlcAddresses.length * 3 + 1;
+        uint256 numCalls = htlcAddresses.length * 4 + 1;
         ERC7821.Call[] memory permissionCalls = new ERC7821.Call[](numCalls);
 
         uint256 callIndex = 0;
@@ -202,6 +295,19 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
                     true
                 )
             });
+
+            // Grant permission to call instantRefund()
+            permissionCalls[callIndex++] = ERC7821.Call({
+                to: gardenSolver,
+                value: 0,
+                data: abi.encodeWithSelector(
+                    GuardedExecutor.setCanExecute.selector,
+                    executorKeyHash,
+                    htlc,
+                    instantRefundSel,
+                    true
+                )
+            });
         }
 
         // for native
@@ -217,50 +323,122 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
             )
         });
 
-        // Get nonce and compute digest for permissions
+        // Get current nonce and compute digest
         uint256 permNonce = solver.getNonce(0);
         bytes32 permDigest = solver.computeDigest(permissionCalls, permNonce);
 
-        // Sign with signer1 and signer2
-        (uint8 v1p, bytes32 r1p, bytes32 s1p) = vm.sign(
-            signer1PrivateKey,
-            permDigest
-        );
-        bytes memory permSig1 = abi.encodePacked(
-            r1p,
-            s1p,
-            v1p,
-            signer1KeyHash,
-            uint8(0)
-        );
+        console.log("\n========================================");
+        console.log("STEP 2: PERMISSIONS - SIGNING INFORMATION");
+        console.log("========================================");
+        console.log("Digest to sign:", vm.toString(permDigest));
+        console.log("Signer address:", signer);
+        console.log("Signer KeyHash:", vm.toString(signerKeyHash));
+        console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
+        console.log("========================================\n");
 
-        (uint8 v2p, bytes32 r2p, bytes32 s2p) = vm.sign(
-            signer2PrivateKey,
-            permDigest
-        );
-        bytes memory permSig2 = abi.encodePacked(
-            r2p,
-            s2p,
-            v2p,
-            signer2KeyHash,
-            uint8(0)
-        );
+        bytes memory permSignature;
+        bool permSignatureReady;
+        string memory permSigHex;
+        bool permSignatureProvided;
+        try vm.envString("SIGNATURE_PERM") returns (string memory sigHexValue) {
+            permSigHex = sigHexValue;
+            permSignatureProvided = true;
+        } catch {}
 
-        // Create multisig signature for permissions
-        bytes[] memory permInnerSignatures = new bytes[](2);
-        permInnerSignatures[0] = permSig1;
-        permInnerSignatures[1] = permSig2;
+        if (permSignatureProvided) {
+            // Parse the signature: format is 0x + 130 hex chars
+            bytes memory sigBytes = vm.parseBytes(permSigHex);
+            require(sigBytes.length == 65, "Signature must be 65 bytes");
 
-        bytes memory permMultisigSignature = abi.encodePacked(
-            abi.encode(permInnerSignatures),
-            multisigKeyHash,
-            uint8(0)
-        );
+            uint8 v;
+            bytes32 r;
+            bytes32 s;
+            assembly {
+                r := mload(add(sigBytes, 0x20))
+                s := mload(add(sigBytes, 0x40))
+                v := byte(0, mload(add(sigBytes, 0x60)))
+            }
+
+            // Calculate the EIP-191 "Prefixed" Hash
+            bytes32 ethSignedMessageHash = keccak256(
+                abi.encodePacked("\x19Ethereum Signed Message:\n32", permDigest)
+            );
+
+            // Recover the address using the PREFIXED hash
+            address recoveredAddress = ecrecover(ethSignedMessageHash, v, r, s);
+            address recoveredAddressAlt = address(0);
+
+            // Handle EIP-2093 malleability (v=27 vs v=28)
+            if (recoveredAddress != signer) {
+                uint8 vAlt = (v == 27) ? 28 : 27;
+                recoveredAddressAlt = ecrecover(
+                    ethSignedMessageHash,
+                    vAlt,
+                    r,
+                    s
+                );
+            }
+
+            bool isMatch = (recoveredAddress == signer) ||
+                (recoveredAddressAlt == signer);
+
+            // Fix 'v' if the alternate was the correct one
+            if (recoveredAddressAlt == signer && recoveredAddress != signer) {
+                v = (v == 27) ? 28 : 27;
+            }
+
+            require(
+                isMatch,
+                "Signature verification failed: Signer does not match (EIP-191 check)."
+            );
+
+            // Pack the signer signature: r + s + v + signerKeyHash + prehashFlag(0)
+            bytes memory signerSig = abi.encodePacked(
+                r,
+                s,
+                v,
+                signerKeyHash,
+                uint8(0)
+            );
+
+            // Wrap in multisig format: abi.encode(bytes[] innerSigs) || multisigKeyHash || uint8(0)
+            // Since threshold = 1, we only need 1 signature
+            bytes[] memory innerSignatures = new bytes[](1);
+            innerSignatures[0] = signerSig;
+
+            // Pack multisig signature: abi.encode(innerSignatures) || multisigKeyHash || uint8(0)
+            permSignature = abi.encodePacked(
+                abi.encode(innerSignatures),
+                multisigKeyHash,
+                uint8(0)
+            );
+            permSignatureReady = true;
+        }
+
+        if (!permSignatureReady) {
+            console.log("\n========================================");
+            console.log("STEP 2: GET DIGEST TO SIGN (PERMISSIONS)");
+            console.log("========================================");
+            console.log("Please sign the digest with your Ledger:");
+            console.log("1. Copy the digest above.");
+            console.log("2. Run this command (NO --raw flag):");
+            console.log("");
+            console.log(
+                "   cast wallet sign --ledger",
+                vm.toString(permDigest)
+            );
+            console.log("");
+            console.log("3. Export the result:");
+            console.log("   export SIGNATURE_PERM=<result>");
+            console.log("4. Run this script again with --broadcast");
+            console.log("========================================\n");
+            return;
+        }
 
         // Execute permissions grant
         solver.execute(
             permissionCalls,
-            abi.encodePacked(permNonce, permMultisigSignature)
+            abi.encodePacked(permNonce, permSignature)
         );
         vm.stopBroadcast();
 

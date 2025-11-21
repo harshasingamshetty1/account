@@ -24,13 +24,13 @@ contract InitiateHTLC is Script {
     function run() public {
         // ... [Configuration loading remains the same] ...
         address gardenSolver = address(
-            0x1DBb9E08655Aaf36B05502020e3cA1eA376932c5
+            0x8dc5F8D658f12375CA9710B8D5fB6d94d7B3AaCB
         );
-        address htlc = address(0x6eb1809A719F494065c35eeeF3ff1c03d4Ffa786);
+        address htlc = address(0xd1E0Ba2b165726b3a6051b765d4564d030FDcf50);
         address redeemer = address(0x07309CeF4FA8F6f34b23940eec887957c7C230bC);
         uint256 timelock = 10000;
         uint256 amount = 1;
-        bytes32 secretHash = keccak256("secret");
+        bytes32 secretHash = keccak256("secret_again");
 
         address signer1;
         try vm.envAddress("SIGNER_ADDRESS") returns (address addr) {
@@ -42,7 +42,6 @@ contract InitiateHTLC is Script {
         console.log("\n========================================");
         console.log("Initiate HTLC Order");
         console.log("========================================");
-        // ... [Logs remain the same] ...
 
         GardenSolver solver = GardenSolver(payable(gardenSolver));
 
@@ -57,7 +56,7 @@ contract InitiateHTLC is Script {
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
         calls[0] = ERC7821.Call({
             to: htlc,
-            value: 1,
+            value: 0,
             data: abi.encodeWithSignature(
                 "initiate(address,uint256,uint256,bytes32)",
                 redeemer,

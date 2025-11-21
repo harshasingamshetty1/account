@@ -95,7 +95,11 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     }
 
     /// @dev Returns the storage pointer.
-    function _getAccountStorage() internal pure returns (AccountStorage storage $) {
+    function _getAccountStorage()
+        internal
+        pure
+        returns (AccountStorage storage $)
+    {
         // Truncate to 9 bytes to reduce bytecode size.
         uint256 s = uint72(bytes9(keccak256("ITHACA_ACCOUNT_STORAGE")));
         assembly ("memory-safe") {
@@ -104,11 +108,9 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     }
 
     /// @dev Returns the storage pointer.
-    function _getKeyExtraStorage(bytes32 keyHash)
-        internal
-        view
-        returns (KeyExtraStorage storage $)
-    {
+    function _getKeyExtraStorage(
+        bytes32 keyHash
+    ) internal view returns (KeyExtraStorage storage $) {
         bytes32 s = _getAccountStorage().keyExtraStorage[keyHash].slot();
         assembly ("memory-safe") {
             $.slot := s
@@ -150,11 +152,16 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     event Authorized(bytes32 indexed keyHash, Key key);
 
     /// @dev The `implementation` has been authorized.
-    event ImplementationApprovalSet(address indexed implementation, bool isApproved);
+    event ImplementationApprovalSet(
+        address indexed implementation,
+        bool isApproved
+    );
 
     /// @dev The `caller` has been authorized to delegate call into `implementation`.
     event ImplementationCallerApprovalSet(
-        address indexed implementation, address indexed caller, bool isApproved
+        address indexed implementation,
+        address indexed caller,
+        bool isApproved
     );
 
     /// @dev The key with a corresponding `keyHash` has been revoked.
@@ -162,7 +169,9 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
 
     /// @dev The `checker` has been authorized to use `isValidSignature` for `keyHash`.
     event SignatureCheckerApprovalSet(
-        bytes32 indexed keyHash, address indexed checker, bool isApproved
+        bytes32 indexed keyHash,
+        address indexed checker,
+        bool isApproved
     );
 
     /// @dev The nonce sequence of is invalidated up to (inclusive) of `nonce`.
@@ -184,18 +193,21 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     ////////////////////////////////////////////////////////////////////////
 
     /// @dev For EIP712 signature digest calculation for the `execute` function.
-    bytes32 public constant EXECUTE_TYPEHASH = keccak256(
-        "Execute(bool multichain,Call[] calls,uint256 nonce)Call(address to,uint256 value,bytes data)"
-    );
+    bytes32 public constant EXECUTE_TYPEHASH =
+        keccak256(
+            "Execute(bool multichain,Call[] calls,uint256 nonce)Call(address to,uint256 value,bytes data)"
+        );
 
     /// @dev For EIP712 signature digest calculation for the `execute` function.
-    bytes32 public constant CALL_TYPEHASH = keccak256("Call(address to,uint256 value,bytes data)");
+    bytes32 public constant CALL_TYPEHASH =
+        keccak256("Call(address to,uint256 value,bytes data)");
 
     /// @dev For EIP712 signature digest calculation.
     bytes32 public constant DOMAIN_TYPEHASH = _DOMAIN_TYPEHASH;
 
     /// @dev For ERC1271 replay-safe hashing.
-    bytes32 public constant SIGN_TYPEHASH = keccak256("ERC1271Sign(bytes32 digest)");
+    bytes32 public constant SIGN_TYPEHASH =
+        keccak256("ERC1271Sign(bytes32 digest)");
 
     /// @dev Nonce prefix to signal that the payload is to be signed with EIP-712 without the chain ID.
     /// This constant is a pun for "chain ID 0".
@@ -203,7 +215,8 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
 
     /// @dev A unique identifier to be passed into `upgradeHook(bytes32 previousVersion)`
     /// via the transient storage slot at `_UPGRADE_HOOK_GUARD_TRANSIENT_SLOT`.
-    bytes32 internal constant _UPGRADE_HOOK_ID = keccak256("ITHACA_ACCOUNT_UPGRADE_HOOK_ID");
+    bytes32 internal constant _UPGRADE_HOOK_ID =
+        keccak256("ITHACA_ACCOUNT_UPGRADE_HOOK_ID");
 
     /// @dev This transient slot must be set to `_UPGRADE_HOOK_ID` before `upgradeHook` can be processed.
     bytes32 internal constant _UPGRADE_HOOK_GUARD_TRANSIENT_SLOT =
@@ -233,16 +246,16 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     ////////////////////////////////////////////////////////////////////////
 
     /// @dev Variant of `_hashTypedData` that includes only the verifying contract.
-    function _hashTypedDataOnlyVerifyingContract(bytes32 structHash)
-        internal
-        view
-        virtual
-        returns (bytes32 digest)
-    {
+    function _hashTypedDataOnlyVerifyingContract(
+        bytes32 structHash
+    ) internal view virtual returns (bytes32 digest) {
         assembly ("memory-safe") {
             let m := mload(0x40) // Load the free memory pointer.
             // Domain Typehash: `keccak256("EIP712Domain(address verifyingContract)")`
-            mstore(0x00, 0x035aff83d86937d35b32e04f0ddc6ff469290eef2f1b692d8a815c89404d4749)
+            mstore(
+                0x00,
+                0x035aff83d86937d35b32e04f0ddc6ff469290eef2f1b692d8a815c89404d4749
+            )
             mstore(0x20, address())
             // Compute the digest.
             mstore(0x20, keccak256(0x00, 0x40)) // Store the domain separator.
@@ -261,12 +274,10 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     /// @dev Note: The rehashing scheme is not EIP-5267 compliant.
     /// A different domain separator is used for the rehashing, which excludes `name` and `version`
     /// from the domain, for latency improvements offchain.
-    function isValidSignature(bytes32 digest, bytes calldata signature)
-        public
-        view
-        virtual
-        returns (bytes4)
-    {
+    function isValidSignature(
+        bytes32 digest,
+        bytes calldata signature
+    ) public view virtual returns (bytes4) {
         // To sign an app digest (e.g. Permit2), you would need to perform a `hashTypedData` on the app's 712,
         // along with the app's domain, then `signTypedData` with the account's 712 and account domain.
         // The account domain is added as a layer to prevent replay attacks since some apps do not include the
@@ -274,10 +285,14 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         bytes32 replaySafeDigest = EfficientHashLib.hash(SIGN_TYPEHASH, digest);
         digest = _hashTypedDataOnlyVerifyingContract(replaySafeDigest);
 
-        (bool isValid, bytes32 keyHash) = unwrapAndValidateSignature(digest, signature);
+        (bool isValid, bytes32 keyHash) = unwrapAndValidateSignature(
+            digest,
+            signature
+        );
         if (LibBit.and(keyHash != 0, isValid)) {
-            isValid = _isSuperAdmin(keyHash)
-                || _getKeyExtraStorage(keyHash).checkers.contains(msg.sender);
+            isValid =
+                _isSuperAdmin(keyHash) ||
+                _getKeyExtraStorage(keyHash).checkers.contains(msg.sender);
         }
         // `bytes4(keccak256("isValidSignature(bytes32,bytes)")) = 0x1626ba7e`.
         // We use `0xffffffff` for invalid, in convention with the reference implementation.
@@ -305,19 +320,22 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     }
 
     /// @dev Authorizes the key.
-    function authorize(Key memory key) public virtual onlyThis returns (bytes32 keyHash) {
+    function authorize(
+        Key memory key
+    ) public virtual onlyThis returns (bytes32 keyHash) {
         keyHash = _addKey(key);
         emit Authorized(keyHash, key);
     }
 
     /// @dev Sets whether `checker` can use `isValidSignature` to successfully validate
     /// a signature for a given key hash.
-    function setSignatureCheckerApproval(bytes32 keyHash, address checker, bool isApproved)
-        public
-        virtual
-        onlyThis
-    {
-        if (_getAccountStorage().keyStorage[keyHash].isEmpty()) revert KeyDoesNotExist();
+    function setSignatureCheckerApproval(
+        bytes32 keyHash,
+        address checker,
+        bool isApproved
+    ) public virtual onlyThis {
+        if (_getAccountStorage().keyStorage[keyHash].isEmpty())
+            revert KeyDoesNotExist();
         _getKeyExtraStorage(keyHash).checkers.update(checker, isApproved, _CAP);
         emit SignatureCheckerApprovalSet(keyHash, checker, isApproved);
     }
@@ -335,13 +353,17 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     /// to a proper EIP7702Proxy. The `newImplementation` should implement
     /// `upgradeProxyAccount` or similar, otherwise upgrades will be locked and
     /// only a new EIP-7702 transaction can change the authority's logic.
-    function upgradeProxyAccount(address newImplementation) public virtual onlyThis {
+    function upgradeProxyAccount(
+        address newImplementation
+    ) public virtual onlyThis {
         if (newImplementation == address(0)) revert NewImplementationIsZero();
         LibEIP7702.upgradeProxyDelegation(newImplementation);
         (, string memory version) = _domainNameAndVersion();
         // Using a dedicated guard makes the hook only callable via this function
         // prevents direct self-calls which may accidentally use the wrong hook ID and version.
-        LibTransient.tBytes32(_UPGRADE_HOOK_GUARD_TRANSIENT_SLOT).set(_UPGRADE_HOOK_ID);
+        LibTransient.tBytes32(_UPGRADE_HOOK_GUARD_TRANSIENT_SLOT).set(
+            _UPGRADE_HOOK_ID
+        );
         // We MUST use `this`, so that it uses the new implementation's `upgradeHook`.
         require(this.upgradeHook(LibString.toSmallString(version)));
     }
@@ -352,10 +374,14 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     /// to migrate storage on a case-by-case basis if needed.
     /// If this hook is implemented to mutate storage,
     /// it MUST check that `_UPGRADE_HOOK_GUARD_TRANSIENT_SLOT` is correctly set.
-    function upgradeHook(bytes32 previousVersion) external virtual onlyThis returns (bool) {
+    function upgradeHook(
+        bytes32 previousVersion
+    ) external virtual onlyThis returns (bool) {
         previousVersion = previousVersion; // Silence unused variable warning.
         // Example of how we are supposed to load, check and clear the upgrade hook guard.
-        bytes32 hookId = LibTransient.tBytes32(_UPGRADE_HOOK_GUARD_TRANSIENT_SLOT).get();
+        bytes32 hookId = LibTransient
+            .tBytes32(_UPGRADE_HOOK_GUARD_TRANSIENT_SLOT)
+            .get();
         require(hookId == _UPGRADE_HOOK_ID);
         LibTransient.tBytes32(_UPGRADE_HOOK_GUARD_TRANSIENT_SLOT).clear();
         // Always returns true for cheaper call success check (even in plain Solidity).
@@ -387,7 +413,9 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     }
 
     /// @dev Returns the key corresponding to the `keyHash`. Reverts if the key does not exist.
-    function getKey(bytes32 keyHash) public view virtual returns (Key memory key) {
+    function getKey(
+        bytes32 keyHash
+    ) public view virtual returns (Key memory key) {
         bytes memory data = _getAccountStorage().keyStorage[keyHash].get();
         if (data.length == uint256(0)) revert KeyDoesNotExist();
         unchecked {
@@ -401,7 +429,12 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     }
 
     /// @dev Returns arrays of all (non-expired) authorized keys and their hashes.
-    function getKeys() public view virtual returns (Key[] memory keys, bytes32[] memory keyHashes) {
+    function getKeys()
+        public
+        view
+        virtual
+        returns (Key[] memory keys, bytes32[] memory keyHashes)
+    {
         uint256 totalCount = keyCount();
 
         keys = new Key[](totalCount);
@@ -433,7 +466,9 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     /// @dev Return the key hash that signed the latest execution context.
     /// @dev Returns bytes32(0) if the EOA key was used.
     function getContextKeyHash() public view virtual returns (bytes32) {
-        LibTStack.TStack memory t = LibTStack.tStack(_KEYHASH_STACK_TRANSIENT_SLOT);
+        LibTStack.TStack memory t = LibTStack.tStack(
+            _KEYHASH_STACK_TRANSIENT_SLOT
+        );
         if (LibTStack.size(t) == 0) {
             return bytes32(0);
         }
@@ -444,16 +479,17 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     /// @dev Returns the hash of the key, which does not includes the expiry.
     function hash(Key memory key) public pure virtual returns (bytes32) {
         // `keccak256(abi.encode(key.keyType, keccak256(key.publicKey)))`.
-        return EfficientHashLib.hash(uint8(key.keyType), uint256(keccak256(key.publicKey)));
+        return
+            EfficientHashLib.hash(
+                uint8(key.keyType),
+                uint256(keccak256(key.publicKey))
+            );
     }
 
     /// @dev Returns the list of approved signature checkers for `keyHash`.
-    function approvedSignatureCheckers(bytes32 keyHash)
-        public
-        view
-        virtual
-        returns (address[] memory)
-    {
+    function approvedSignatureCheckers(
+        bytes32 keyHash
+    ) public view virtual returns (address[] memory) {
         return _getKeyExtraStorage(keyHash).checkers.values();
     }
 
@@ -461,15 +497,16 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     /// If the the nonce starts with `MULTICHAIN_NONCE_PREFIX`,
     /// the digest will be computed without the chain ID.
     /// Otherwise, the digest will be computed with the chain ID.
-    function computeDigest(Call[] calldata calls, uint256 nonce)
-        public
-        view
-        virtual
-        returns (bytes32 result)
-    {
+    function computeDigest(
+        Call[] calldata calls,
+        uint256 nonce
+    ) public view virtual returns (bytes32 result) {
         bytes32[] memory a = EfficientHashLib.malloc(calls.length);
         for (uint256 i; i < calls.length; ++i) {
-            (address target, uint256 value, bytes calldata data) = _get(calls, i);
+            (address target, uint256 value, bytes calldata data) = _get(
+                calls,
+                i
+            );
             a.set(
                 i,
                 EfficientHashLib.hash(
@@ -482,26 +519,33 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         }
         bool isMultichain = nonce >> 240 == MULTICHAIN_NONCE_PREFIX;
         bytes32 structHash = EfficientHashLib.hash(
-            uint256(EXECUTE_TYPEHASH), LibBit.toUint(isMultichain), uint256(a.hash()), nonce
+            uint256(EXECUTE_TYPEHASH),
+            LibBit.toUint(isMultichain),
+            uint256(a.hash()),
+            nonce
         );
-        return isMultichain ? _hashTypedDataSansChainId(structHash) : _hashTypedData(structHash);
+        return
+            isMultichain
+                ? _hashTypedDataSansChainId(structHash)
+                : _hashTypedData(structHash);
     }
 
     /// @dev Returns if the signature is valid, along with its `keyHash`.
     /// The `signature` is a wrapped signature, given by
     /// `abi.encodePacked(bytes(innerSignature), bytes32(keyHash), bool(prehash))`.
-    function unwrapAndValidateSignature(bytes32 digest, bytes calldata signature)
-        public
-        view
-        virtual
-        returns (bool isValid, bytes32 keyHash)
-    {
+    function unwrapAndValidateSignature(
+        bytes32 digest,
+        bytes calldata signature
+    ) public view virtual returns (bool isValid, bytes32 keyHash) {
         // Early return if unable to unwrap the signature.
         if (signature.length < 0x21) return (false, 0);
 
         // If the signature's length is 64 or 65, treat it like an secp256k1 signature.
         if (LibBit.or(signature.length == 64, signature.length == 65)) {
-            return (ECDSA.recoverCalldata(digest, signature) == address(this), 0);
+            return (
+                ECDSA.recoverCalldata(digest, signature) == address(this),
+                0
+            );
         }
 
         unchecked {
@@ -517,7 +561,8 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         Key memory key = getKey(keyHash);
 
         // Early return if the key has expired.
-        if (LibBit.and(key.expiry != 0, block.timestamp > key.expiry)) return (false, keyHash);
+        if (LibBit.and(key.expiry != 0, block.timestamp > key.expiry))
+            return (false, keyHash);
 
         if (key.keyType == KeyType.P256) {
             // The try decode functions returns `(0,0)` if the bytes is too short,
@@ -536,9 +581,25 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
                 y
             );
         } else if (key.keyType == KeyType.Secp256k1) {
-            isValid = SignatureCheckerLib.isValidSignatureNowCalldata(
-                abi.decode(key.publicKey, (address)), digest, signature
+            address signer = abi.decode(key.publicKey, (address));
+
+            bool validRaw = SignatureCheckerLib.isValidSignatureNowCalldata(
+                signer,
+                digest,
+                signature
             );
+
+            bytes32 ethSignedDigest = keccak256(
+                abi.encodePacked("\x19Ethereum Signed Message:\n32", digest)
+            );
+
+            bool validLedger = SignatureCheckerLib.isValidSignatureNowCalldata(
+                signer,
+                ethSignedDigest,
+                signature
+            );
+
+            isValid = validRaw || validLedger;
         } else if (key.keyType == KeyType.External) {
             // The public key of an external key type HAS to be 32 bytes.
             // Top 20 bytes: address of the signer.
@@ -558,10 +619,19 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
 
                 mstore(0x00, 0) // Zeroize return data memory.
                 let size := add(signature.length, 0x84)
-                let success := staticcall(gas(), signer, add(m, 0x1c), size, 0x00, 0x20)
+                let success := staticcall(
+                    gas(),
+                    signer,
+                    add(m, 0x1c),
+                    size,
+                    0x00,
+                    0x20
+                )
 
                 // MagicValue: bytes4(keccak256("isValidSignatureWithKeyHash(bytes32,bytes32,bytes)")
-                if and(success, eq(shr(224, mload(0x00)), 0x8afc93b4)) { isValid := true }
+                if and(success, eq(shr(224, mload(0x00)), 0x8afc93b4)) {
+                    isValid := true
+                }
             }
         }
     }
@@ -571,12 +641,19 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     ////////////////////////////////////////////////////////////////////////
 
     /// @dev Adds the key. If the key already exist, its expiry will be updated.
-    function _addKey(Key memory key) internal virtual returns (bytes32 keyHash) {
+    function _addKey(
+        Key memory key
+    ) internal virtual returns (bytes32 keyHash) {
         // `keccak256(abi.encode(key.keyType, keccak256(key.publicKey)))`.
         keyHash = hash(key);
         AccountStorage storage $ = _getAccountStorage();
         $.keyStorage[keyHash].set(
-            abi.encodePacked(key.publicKey, key.expiry, key.keyType, key.isSuperAdmin)
+            abi.encodePacked(
+                key.publicKey,
+                key.expiry,
+                key.keyType,
+                key.isSuperAdmin
+            )
         );
         $.keyHashes.add(keyHash);
     }
@@ -624,46 +701,38 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         //     // dynamic fields like `signature`, which generate the implicit bounds checks.
         //     if or(shr(64, t), lt(encodedIntent.length, 0x20)) { revert(0x00, 0x00) }
         // }
-
         // if (!LibBit.and(
         //         msg.sender == ORCHESTRATOR,
         //         LibBit.or(intent.eoa == address(this), intent.payer == address(this))
         //     )) {
         //     revert Unauthorized();
         // }
-
         // // If this account is the paymaster, validate the paymaster signature.
         // if (intent.payer == address(this)) {
         //     if (_getAccountStorage().paymasterNonces[intentDigest]) {
         //         revert PaymasterNonceError();
         //     }
         //     _getAccountStorage().paymasterNonces[intentDigest] = true;
-
         //     (bool isValid, bytes32 k) =
         //         unwrapAndValidateSignature(intentDigest, intent.paymentSignature);
-
         //     // Set the target key hash to the payer's.
         //     keyHash = k;
-
         //     // If this is a simulation, signature validation errors are skipped.
         //     /// @dev to simulate a paymaster, state override the balance of the relayer
         //     /// to type(uint192).max.
         //     if (tx.origin.balance >= type(uint192).max) {
         //         isValid = true;
         //     }
-
         //     if (!isValid) {
         //         revert Unauthorized();
         //     }
         // }
-
         // TokenTransferLib.safeTransfer(intent.paymentToken, intent.paymentRecipient, paymentAmount);
         // // Increase spend.
         // if (!(keyHash == bytes32(0) || _isSuperAdmin(keyHash))) {
         //     SpendStorage storage spends = _getGuardedExecutorKeyStorage(keyHash).spends;
         //     _incrementSpent(spends.spends[intent.paymentToken], intent.paymentToken, paymentAmount);
         // }
-
         // // Done to avoid compiler warnings.
         // intentDigest = intentDigest;
     }
@@ -673,11 +742,12 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     ////////////////////////////////////////////////////////////////////////
 
     /// @dev For ERC7821.
-    function _execute(bytes32, bytes calldata, Call[] calldata calls, bytes calldata opData)
-        internal
-        virtual
-        override
-    {
+    function _execute(
+        bytes32,
+        bytes calldata,
+        Call[] calldata calls,
+        bytes calldata opData
+    ) internal virtual override {
         // Orchestrator workflow.
         // if (msg.sender == ORCHESTRATOR) {
         //     // opdata
@@ -705,7 +775,8 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         emit NonceInvalidated(nonce);
 
         (bool isValid, bytes32 keyHash) = unwrapAndValidateSignature(
-            computeDigest(calls, nonce), LibBytes.sliceCalldata(opData, 0x20)
+            computeDigest(calls, nonce),
+            LibBytes.sliceCalldata(opData, 0x20)
         );
         if (!isValid) revert Unauthorized();
 
@@ -720,20 +791,21 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
     ////////////////////////////////////////////////////////////////////////
 
     /// @dev Returns if `keyHash` corresponds to a super admin key.
-    function _isSuperAdmin(bytes32 keyHash) internal view virtual override returns (bool) {
-        LibBytes.BytesStorage storage s = _getAccountStorage().keyStorage[keyHash];
+    function _isSuperAdmin(
+        bytes32 keyHash
+    ) internal view virtual override returns (bool) {
+        LibBytes.BytesStorage storage s = _getAccountStorage().keyStorage[
+            keyHash
+        ];
         uint256 encodedLength = s.length();
         if (encodedLength == uint256(0)) revert KeyDoesNotExist();
         return s.uint8At(Math.rawSub(encodedLength, 1)) != 0;
     }
 
     /// @dev Returns the storage seed for a `keyHash`.
-    function _getGuardedExecutorKeyStorageSeed(bytes32 keyHash)
-        internal
-        view
-        override
-        returns (bytes32)
-    {
+    function _getGuardedExecutorKeyStorageSeed(
+        bytes32 keyHash
+    ) internal view override returns (bytes32) {
         return _getAccountStorage().keyExtraStorage[keyHash].slot();
     }
 
