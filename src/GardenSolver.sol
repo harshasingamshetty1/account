@@ -18,6 +18,7 @@ contract GardenSolver is IthacaAccount, Pausable {
     error GardenSolver__ZeroValue();
 
     event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
+    event AssetWithdraw(address indexed to, address indexed keyhash, uint256 indexed amount);
 
     constructor(
         address orchestrator,
@@ -99,10 +100,12 @@ contract GardenSolver is IthacaAccount, Pausable {
 
         bytes32 keyHash = getContextKeyHash();
         
-        if (!(keyHash == bytes32(0) || _isSuperAdmin(keyHash))) {
+        if (!_isSuperAdmin(keyHash)) {
             SpendStorage storage spends = _getGuardedExecutorKeyStorage(keyHash).spends;
             _incrementSpent(spends.spends[token], token, amount);
         }
+
+        emit AssetWithdraw(recipient, token , amount);
     }
 
     function pause() external onlyThis whenNotPaused {
