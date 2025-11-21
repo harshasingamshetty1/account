@@ -93,6 +93,9 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
         );
         bytes4 redeemSel = bytes4(keccak256("redeem(bytes32,bytes)"));
         bytes4 refundSel = bytes4(keccak256("refund(bytes32)"));
+        bytes4 instantRefundSel = bytes4(
+            keccak256("instantRefund(bytes32,bytes)")
+        );
 
         // Step 1: Authorize executor key
         console.log("Step 1: Authorizing executor key...");
@@ -157,7 +160,7 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
         console.log("Step 2: Granting HTLC permissions to executor...");
 
         // Create calls for all HTLC addresses (3 functions per HTLC) + 1 for native token spend limit
-        uint256 numCalls = htlcAddresses.length * 3 + 1;
+        uint256 numCalls = htlcAddresses.length * 4 + 1;
         ERC7821.Call[] memory permissionCalls = new ERC7821.Call[](numCalls);
 
         uint256 callIndex = 0;
@@ -199,6 +202,19 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
                     executorKeyHash,
                     htlc,
                     refundSel,
+                    true
+                )
+            });
+
+            // Grant permission to call instantRefund()
+            permissionCalls[callIndex++] = ERC7821.Call({
+                to: gardenSolver,
+                value: 0,
+                data: abi.encodeWithSelector(
+                    GuardedExecutor.setCanExecute.selector,
+                    executorKeyHash,
+                    htlc,
+                    instantRefundSel,
                     true
                 )
             });
@@ -274,6 +290,7 @@ contract AuthorizeExecutorAndGrantPermissions is Script {
             console.log("    - initiate(address,uint256,uint256,bytes32)");
             console.log("    - redeem(bytes32,bytes)");
             console.log("    - refund(bytes32)");
+            console.log("    - instantRefund(bytes32,bytes)");
         }
         console.log("Spend permissions:");
         console.log("  - Native token (address(0)): 100 ETH (Forever period)");
