@@ -214,7 +214,7 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     SIGNER2_ADDRESS: signer2Address,
     SIGNER3_ADDRESS: signer3Address,
     FUND_AMOUNT_WEI: fundAmountWei, //@dev Amount in wei (Solidity expects uint256)
-    MULTISIG_THRESHOLD: "1", // 2-of-3
+    MULTISIG_THRESHOLD: "2", // 2 of 3
   };
 
   console.log(

@@ -29,7 +29,9 @@ interface IHTLC {
 ///      - GARDEN_SOLVER: Address of GardenSolver contract
 ///      - HTLC_ADDRESSES: Comma-separated list of HTLC addresses (or single address)
 ///                        Each HTLC's token will be fetched and approved to that HTLC
-///      - SIGNER_ADDRESS: Address of the signer (hardware wallet address)
+///      - SIGNER_ONE_ADDRESS (or SIGNER_ADDRESS): Hardware signer address
+///      - SIGNER_TWO_ADDRESS: Address of second signer (software key)
+///      - SIGNER_TWO_PRIVATE_KEY: Private key for second signer (hex string)
 ///      - SIGNATURE: (Optional) Signature from hardware wallet (for Step 3)
 ///      - DEPLOYER_PRIVATE_KEY: Private key to broadcast transaction (required)
 contract ApproveHTLCToken is Script {
@@ -52,12 +54,9 @@ contract ApproveHTLCToken is Script {
             console.log("    Token:", tokens[i]);
         }
 
-        address signer;
-        try vm.envAddress("SIGNER_ADDRESS") returns (address addr) {
-            signer = addr;
-        } catch {
-            revert("SIGNER_ADDRESS environment variable is required");
-        }
+        address signer = vm.envAddress("SIGNER_ONE_ADDRESS");
+        uint256 signer2PrivateKey = vm.envUint("SIGNER_TWO_PRIVATE_KEY");
+        address signer2 = vm.addr(signer2PrivateKey);
 
         console.log("\n========================================");
         console.log("Approve Tokens to HTLCs (Hardware Wallet)");
@@ -69,26 +68,14 @@ contract ApproveHTLCToken is Script {
             console.log("    Address:", htlcAddresses[i]);
             console.log("    Token:", tokens[i]);
         }
-        console.log("Signer:", signer);
+        console.log("Signer 1:", signer);
+        console.log("Signer 2:", signer2);
         console.log("========================================\n");
 
         GardenSolver solver = GardenSolver(payable(gardenSolver));
 
         // Get multisig key hash from environment (from deployed.json)
-        bytes32 multisigKeyHash;
-        try vm.envBytes32("MULTISIG_KEY_HASH") returns (bytes32 hash) {
-            multisigKeyHash = hash;
-        } catch {
-            // Compute multisig key hash if not provided
-            address multiSigSigner = vm.envAddress("MULTISIG_SIGNER");
-            IthacaAccount.Key memory multisigKey = IthacaAccount.Key({
-                expiry: 0,
-                keyType: IthacaAccount.KeyType.External,
-                isSuperAdmin: true,
-                publicKey: abi.encodePacked(multiSigSigner, bytes12(0))
-            });
-            multisigKeyHash = solver.hash(multisigKey);
-        }
+        bytes32 multisigKeyHash = vm.envBytes32("MULTISIG_KEY_HASH");
 
         // Also compute signer key hash for reference
         IthacaAccount.Key memory signerKey = IthacaAccount.Key({
@@ -97,7 +84,14 @@ contract ApproveHTLCToken is Script {
             isSuperAdmin: false,
             publicKey: abi.encode(signer)
         });
+        IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
+            expiry: 0,
+            keyType: IthacaAccount.KeyType.Secp256k1,
+            isSuperAdmin: false,
+            publicKey: abi.encode(signer2)
+        });
         bytes32 signerKeyHash = solver.hash(signerKey);
+        bytes32 signer2KeyHash = solver.hash(signer2Key);
 
         // Create approval calls - each HTLC gets approval for its own token
         ERC7821.Call[] memory calls = new ERC7821.Call[](htlcAddresses.length);
@@ -122,110 +116,106 @@ contract ApproveHTLCToken is Script {
         console.log("========================================");
         console.log("Digest to sign:", vm.toString(digest));
         console.log("Signer address:", signer);
+        console.log("Signer 2 address:", signer2);
         console.log("Signer KeyHash:", vm.toString(signerKeyHash));
+        console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("========================================\n");
 
-        bytes memory signature;
-        bool signatureReady;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
+        bytes memory signerOneSig;
+        {
+            string memory sigHexValue;
+            bool signatureProvided;
+            try vm.envString("SIGNATURE") returns (string memory value) {
+                sigHexValue = value;
+                signatureProvided = bytes(sigHexValue).length != 0;
+            } catch {}
 
-        string memory sigHex;
-        bool signatureProvided;
-        try vm.envString("SIGNATURE") returns (string memory sigHexValue) {
-            sigHex = sigHexValue;
-            signatureProvided = true;
-        } catch {}
+            if (signatureProvided) {
+                // Parse the signature: format is 0x + 130 hex chars
+                bytes memory sigBytes = vm.parseBytes(sigHexValue);
+                require(sigBytes.length == 65, "Signature must be 65 bytes");
 
-        if (signatureProvided) {
-            // Parse the signature: format is 0x + 130 hex chars
-            bytes memory sigBytes = vm.parseBytes(sigHex);
-            require(sigBytes.length == 65, "Signature must be 65 bytes");
+                bytes32 r;
+                bytes32 s;
+                uint8 v;
+                assembly {
+                    r := mload(add(sigBytes, 0x20))
+                    s := mload(add(sigBytes, 0x40))
+                    v := byte(0, mload(add(sigBytes, 0x60)))
+                }
 
-            assembly {
-                r := mload(add(sigBytes, 0x20))
-                s := mload(add(sigBytes, 0x40))
-                v := byte(0, mload(add(sigBytes, 0x60)))
-            }
+                // Calculate the EIP-191 "Prefixed" Hash
+                // This mimics what the Ledger triggers internally when you do 'sign message'
+                bytes32 ethSignedMessageHash = keccak256(
+                    abi.encodePacked("\x19Ethereum Signed Message:\n32", digest)
+                );
 
-            // Calculate the EIP-191 "Prefixed" Hash
-            // This mimics what the Ledger triggers internally when you do 'sign message'
-            bytes32 ethSignedMessageHash = keccak256(
-                abi.encodePacked("\x19Ethereum Signed Message:\n32", digest)
-            );
-
-            // Recover the address using the PREFIXED hash
-            address recoveredAddress = ecrecover(ethSignedMessageHash, v, r, s);
-            address recoveredAddressAlt = address(0);
-
-            // Handle EIP-2093 malleability (v=27 vs v=28)
-            if (recoveredAddress != signer) {
-                uint8 vAlt = (v == 27) ? 28 : 27;
-                recoveredAddressAlt = ecrecover(
+                // Recover the address using the PREFIXED hash
+                address recoveredAddress = ecrecover(
                     ethSignedMessageHash,
-                    vAlt,
+                    v,
                     r,
                     s
                 );
+                address recoveredAddressAlt = address(0);
+
+                // Handle EIP-2093 malleability (v=27 vs v=28)
+                if (recoveredAddress != signer) {
+                    uint8 vAlt = (v == 27) ? 28 : 27;
+                    recoveredAddressAlt = ecrecover(
+                        ethSignedMessageHash,
+                        vAlt,
+                        r,
+                        s
+                    );
+                }
+
+                bool isMatch = (recoveredAddress == signer) ||
+                    (recoveredAddressAlt == signer);
+
+                // Fix 'v' if the alternate was the correct one
+                if (
+                    recoveredAddressAlt == signer && recoveredAddress != signer
+                ) {
+                    v = (v == 27) ? 28 : 27;
+                }
+
+                // Logging for debugging
+                console.log("\n========================================");
+                console.log("SIGNATURE VERIFICATION");
+                console.log("========================================");
+                console.log("Original Digest:", vm.toString(digest));
+                console.log(
+                    "Prefixed Hash (EIP-191):",
+                    vm.toString(ethSignedMessageHash)
+                );
+                console.log("----------------------------------------");
+                console.log("Expected Signer:", signer);
+                console.log(
+                    "Recovered Signer:",
+                    isMatch ? signer : recoveredAddress
+                );
+                console.log("Match Success:", isMatch ? "YES" : "NO");
+                console.log("========================================\n");
+
+                require(
+                    isMatch,
+                    "Signature verification failed: Signer does not match (EIP-191 check)."
+                );
+
+                // Pack the signer signature: r + s + v + signerKeyHash + prehashFlag(0)
+                signerOneSig = abi.encodePacked(
+                    r,
+                    s,
+                    v,
+                    signerKeyHash,
+                    uint8(0)
+                );
             }
-
-            bool isMatch = (recoveredAddress == signer) ||
-                (recoveredAddressAlt == signer);
-
-            // Fix 'v' if the alternate was the correct one
-            if (recoveredAddressAlt == signer && recoveredAddress != signer) {
-                v = (v == 27) ? 28 : 27;
-            }
-
-            // Logging for debugging
-            console.log("\n========================================");
-            console.log("SIGNATURE VERIFICATION");
-            console.log("========================================");
-            console.log("Original Digest:", vm.toString(digest));
-            console.log(
-                "Prefixed Hash (EIP-191):",
-                vm.toString(ethSignedMessageHash)
-            );
-            console.log("----------------------------------------");
-            console.log("Expected Signer:", signer);
-            console.log(
-                "Recovered Signer:",
-                isMatch ? signer : recoveredAddress
-            );
-            console.log("Match Success:", isMatch ? "YES" : "NO");
-            console.log("========================================\n");
-
-            require(
-                isMatch,
-                "Signature verification failed: Signer does not match (EIP-191 check)."
-            );
-
-            // Pack the signer signature: r + s + v + signerKeyHash + prehashFlag(0)
-            bytes memory signerSig = abi.encodePacked(
-                r,
-                s,
-                v,
-                signerKeyHash,
-                uint8(0)
-            );
-
-            // Wrap in multisig format: abi.encode(bytes[] innerSigs) || multisigKeyHash || uint8(0)
-            // Since threshold = 1, we only need 1 signature
-            bytes[] memory innerSignatures = new bytes[](1);
-            innerSignatures[0] = signerSig;
-
-            // Pack multisig signature: abi.encode(innerSignatures) || multisigKeyHash || uint8(0)
-            signature = abi.encodePacked(
-                abi.encode(innerSignatures),
-                multisigKeyHash,
-                uint8(0)
-            );
-            signatureReady = true;
         }
 
-        if (!signatureReady) {
+        if (signerOneSig.length == 0) {
             console.log("\n========================================");
             console.log("STEP 1: GET DIGEST TO SIGN");
             console.log("========================================");
@@ -241,6 +231,25 @@ contract ApproveHTLCToken is Script {
             console.log("========================================\n");
             return;
         }
+
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(signer2PrivateKey, digest);
+        bytes memory signerTwoSig = abi.encodePacked(
+            r2,
+            s2,
+            v2,
+            signer2KeyHash,
+            uint8(0)
+        );
+
+        bytes[] memory innerSignatures = new bytes[](2);
+        innerSignatures[0] = signerOneSig;
+        innerSignatures[1] = signerTwoSig;
+
+        bytes memory signature = abi.encodePacked(
+            abi.encode(innerSignatures),
+            multisigKeyHash,
+            uint8(0)
+        );
 
         // Execute
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");

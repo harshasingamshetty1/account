@@ -6,6 +6,8 @@ import { join } from "path";
 import {
   DEPLOYER_PRIVATE_KEY,
   SIGNER_ONE_ADDRESS,
+  SIGNER_TWO_ADDRESS,
+  SIGNER_TWO_PRIVATE_KEY,
   PERMISSION_ADDRESS,
 } from "./config";
 
@@ -22,11 +24,24 @@ if (!PERMISSION_ADDRESS) {
   );
 }
 
-// SIGNER_ADDRESS is required for hardware wallet signing
-const SIGNER_ADDRESS = process.env.SIGNER_ADDRESS || SIGNER_ONE_ADDRESS;
-if (!SIGNER_ADDRESS) {
+// SIGNER_ONE (hardware) and SIGNER_TWO (software) are required
+const HARDWARE_SIGNER_ADDRESS =
+  process.env.SIGNER_ADDRESS || SIGNER_ONE_ADDRESS;
+if (!HARDWARE_SIGNER_ADDRESS) {
   throw new Error(
-    "Missing required configuration. Please set SIGNER_ADDRESS (or SIGNER_ONE_ADDRESS) in .env file for hardware wallet signing."
+    "Missing required configuration. Please set SIGNER_ONE_ADDRESS (or SIGNER_ADDRESS) in .env file for hardware wallet signing."
+  );
+}
+
+if (!SIGNER_TWO_ADDRESS) {
+  throw new Error(
+    "Missing required configuration. Please set SIGNER_TWO_ADDRESS in .env file."
+  );
+}
+
+if (!SIGNER_TWO_PRIVATE_KEY) {
+  throw new Error(
+    "Missing required configuration. Please set SIGNER_TWO_PRIVATE_KEY in .env file."
   );
 }
 
@@ -60,6 +75,8 @@ async function executeApproveTokens(
   chain: ChainConfig,
   deployed: DeployedContracts
 ): Promise<void> {
+  delete process.env.SIGNATURE;
+
   // Only approve tokens for non-native HTLCs
   if (!chain.htlcs || chain.htlcs.length === 0) {
     console.log("\n⏭️  Skipping token approval (no non-native HTLCs)\n");
@@ -74,7 +91,10 @@ async function executeApproveTokens(
     ...process.env,
     GARDEN_SOLVER: deployed.gardenSolver,
     HTLC_ADDRESSES: chain.htlcs.join(","),
-    SIGNER_ADDRESS: SIGNER_ADDRESS,
+    SIGNER_ADDRESS: HARDWARE_SIGNER_ADDRESS,
+    SIGNER_ONE_ADDRESS: HARDWARE_SIGNER_ADDRESS,
+    SIGNER_TWO_ADDRESS: SIGNER_TWO_ADDRESS,
+    SIGNER_TWO_PRIVATE_KEY: SIGNER_TWO_PRIVATE_KEY,
     MULTISIG_SIGNER: deployed.multiSigSigner,
     MULTISIG_KEY_HASH: deployed.multisigKeyHash,
     DEPLOYER_PRIVATE_KEY: DEPLOYER_PRIVATE_KEY,
@@ -156,6 +176,7 @@ async function executeApproveTokens(
       stdio: "inherit",
     });
     console.log("\n[OK] Tokens approved successfully!\n");
+    delete process.env.SIGNATURE;
   } catch (error: any) {
     console.error("Token approval failed:", error.message);
     throw error;
@@ -180,12 +201,18 @@ async function executeGrantPermissions(
     );
   }
 
+  delete process.env.SIGNATURE_AUTH;
+  delete process.env.SIGNATURE_PERM;
+
   const baseEnv = {
     ...process.env,
     GARDEN_SOLVER: deployed.gardenSolver,
     HTLC_ADDRESSES: allHtlcs.join(","),
     PERMISSION_ADDRESS: PERMISSION_ADDRESS,
-    SIGNER_ADDRESS: SIGNER_ADDRESS,
+    SIGNER_ADDRESS: HARDWARE_SIGNER_ADDRESS,
+    SIGNER_ONE_ADDRESS: HARDWARE_SIGNER_ADDRESS,
+    SIGNER_TWO_ADDRESS: SIGNER_TWO_ADDRESS,
+    SIGNER_TWO_PRIVATE_KEY: SIGNER_TWO_PRIVATE_KEY,
     MULTISIG_SIGNER: deployed.multiSigSigner,
     MULTISIG_KEY_HASH: deployed.multisigKeyHash,
     DEPLOYER_PRIVATE_KEY: DEPLOYER_PRIVATE_KEY,
@@ -303,6 +330,7 @@ async function executeGrantPermissions(
       stdio: "inherit",
     });
     console.log("\n[OK] Authorization executed successfully!\n");
+    delete process.env.SIGNATURE_AUTH;
   } catch (error: any) {
     console.error("Authorization execution failed:", error.message);
     throw error;
@@ -414,6 +442,7 @@ async function executeGrantPermissions(
     console.log(
       "\n[OK] Authorize executor and grant permissions successfully!\n"
     );
+    delete process.env.SIGNATURE_PERM;
   } catch (error: any) {
     console.error(
       "Authorize executor and grant permissions failed:",
@@ -444,7 +473,8 @@ async function executeInitiateHTLC(
     TIMELOCK: timelock.toString(),
     AMOUNT: amount,
     SECRET_HASH: secretHash,
-    SIGNER_ADDRESS: SIGNER_ADDRESS,
+    SIGNER_ADDRESS: HARDWARE_SIGNER_ADDRESS,
+    SIGNER_ONE_ADDRESS: HARDWARE_SIGNER_ADDRESS,
   };
 
   const scriptPath = join(__dirname, "../script/main/InitiateHTLC.s.sol");

@@ -11,6 +11,7 @@ bytecode_hash = "none"
 cbor_metadata = false
 optimizer = true
 optimizer_runs = 200
+via_ir = true
 fs_permissions = [{ access = "read-write", path = "deploy/config.toml" }]
 
 [fmt]

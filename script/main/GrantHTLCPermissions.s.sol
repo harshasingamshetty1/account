@@ -25,8 +25,10 @@ import {GuardedExecutor} from "../../src/GuardedExecutor.sol";
 ///      - GARDEN_SOLVER: Address of GardenSolver contract
 ///      - HTLC_ADDRESSES: Comma-separated list of HTLC addresses (or single address)
 ///      - PERMISSION_ADDRESS: Address of executor to grant permissions to
-///      - SIGNER_ADDRESS: Address of the signer (hardware wallet address)
-///      - SIGNATURE_PERM: (Optional) Signature for permissions step
+///      - SIGNER_ONE_ADDRESS (or SIGNER_ADDRESS): Hardware signer address
+///      - SIGNER_TWO_ADDRESS: Address of second signer (software key)
+///      - SIGNER_TWO_PRIVATE_KEY: Private key for second signer (hex string)
+///      - SIGNATURE_PERM: (Optional) Signature for permissions step (hardware signer)
 ///      - DEPLOYER_PRIVATE_KEY: Private key to broadcast transaction (required)
 contract GrantHTLCPermissions is Script {
     function run() public {
@@ -36,11 +38,20 @@ contract GrantHTLCPermissions is Script {
         address executorAddress = vm.envAddress("PERMISSION_ADDRESS");
 
         address signer;
-        try vm.envAddress("SIGNER_ADDRESS") returns (address addr) {
+        try vm.envAddress("SIGNER_ONE_ADDRESS") returns (address addr) {
             signer = addr;
         } catch {
-            revert("SIGNER_ADDRESS environment variable is required");
+            signer = vm.envAddress("SIGNER_ADDRESS");
         }
+
+        uint256 signer2PrivateKey = vm.envUint("SIGNER_TWO_PRIVATE_KEY");
+        address signer2 = vm.addr(signer2PrivateKey);
+        try vm.envAddress("SIGNER_TWO_ADDRESS") returns (address expected) {
+            require(
+                expected == signer2,
+                "SIGNER_TWO_ADDRESS does not match derived private key"
+            );
+        } catch {}
 
         // Parse HTLC addresses (comma-separated or single)
         address[] memory htlcAddresses = _parseAddresses(htlcAddressesStr);
@@ -50,7 +61,8 @@ contract GrantHTLCPermissions is Script {
         console.log("========================================");
         console.log("GardenSolver:", gardenSolver);
         console.log("Executor Address:", executorAddress);
-        console.log("Signer Address:", signer);
+        console.log("Signer 1 Address:", signer);
+        console.log("Signer 2 Address:", signer2);
         console.log("HTLC Addresses:");
         for (uint256 i = 0; i < htlcAddresses.length; i++) {
             console.log("  HTLC", i);
@@ -77,6 +89,13 @@ contract GrantHTLCPermissions is Script {
         });
         bytes32 signerKeyHash = solver.hash(signerKey);
 
+        IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
+            expiry: 0,
+            keyType: IthacaAccount.KeyType.Secp256k1,
+            isSuperAdmin: false,
+            publicKey: abi.encode(signer2)
+        });
+        bytes32 signer2KeyHash = solver.hash(signer2Key);
         // Get multisig key hash from environment (from deployed.json)
         bytes32 multisigKeyHash;
         try vm.envBytes32("MULTISIG_KEY_HASH") returns (bytes32 hash) {
@@ -95,95 +114,16 @@ contract GrantHTLCPermissions is Script {
 
         console.log("Executor KeyHash:", vm.toString(executorKeyHash));
         console.log("Signer KeyHash:", vm.toString(signerKeyHash));
-        console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
+        console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("");
-
-        // Compute function selectors for HTLC functions
-        bytes4 initiateSel = bytes4(
-            keccak256("initiate(address,uint256,uint256,bytes32)")
-        );
-        bytes4 redeemSel = bytes4(keccak256("redeem(bytes32,bytes)"));
-        bytes4 refundSel = bytes4(keccak256("refund(bytes32)"));
-        bytes4 instantRefundSel = bytes4(
-            keccak256("instantRefund(bytes32,bytes)")
-        );
 
         // Grant permissions to executor
         console.log("Granting HTLC permissions to executor...");
-
-        // Create calls for all HTLC addresses (4 functions per HTLC) + 1 for native token spend limit
-        uint256 numCalls = htlcAddresses.length * 4 + 1;
-        ERC7821.Call[] memory permissionCalls = new ERC7821.Call[](numCalls);
-
-        uint256 callIndex = 0;
-        for (uint256 i = 0; i < htlcAddresses.length; i++) {
-            address htlc = htlcAddresses[i];
-
-            // Grant permission to call initiate()
-            permissionCalls[callIndex++] = ERC7821.Call({
-                to: gardenSolver,
-                value: 0,
-                data: abi.encodeWithSelector(
-                    GuardedExecutor.setCanExecute.selector,
-                    executorKeyHash,
-                    htlc,
-                    initiateSel,
-                    true
-                )
-            });
-
-            // Grant permission to call redeem()
-            permissionCalls[callIndex++] = ERC7821.Call({
-                to: gardenSolver,
-                value: 0,
-                data: abi.encodeWithSelector(
-                    GuardedExecutor.setCanExecute.selector,
-                    executorKeyHash,
-                    htlc,
-                    redeemSel,
-                    true
-                )
-            });
-
-            // Grant permission to call refund()
-            permissionCalls[callIndex++] = ERC7821.Call({
-                to: gardenSolver,
-                value: 0,
-                data: abi.encodeWithSelector(
-                    GuardedExecutor.setCanExecute.selector,
-                    executorKeyHash,
-                    htlc,
-                    refundSel,
-                    true
-                )
-            });
-
-            // Grant permission to call instantRefund()
-            permissionCalls[callIndex++] = ERC7821.Call({
-                to: gardenSolver,
-                value: 0,
-                data: abi.encodeWithSelector(
-                    GuardedExecutor.setCanExecute.selector,
-                    executorKeyHash,
-                    htlc,
-                    instantRefundSel,
-                    true
-                )
-            });
-        }
-
-        // for native
-        permissionCalls[callIndex++] = ERC7821.Call({
-            to: gardenSolver,
-            value: 0,
-            data: abi.encodeWithSelector(
-                GuardedExecutor.setSpendLimit.selector,
-                executorKeyHash,
-                address(0), // Native token
-                GuardedExecutor.SpendPeriod.Forever,
-                100 ether // 100 ETH limit
-            )
-        });
+        ERC7821.Call[] memory permissionCalls = _buildPermissionCalls(
+            gardenSolver,
+            executorKeyHash,
+            htlcAddresses
+        );
 
         // Get current nonce and compute digest
         uint256 permNonce = solver.getNonce(0);
@@ -195,89 +135,91 @@ contract GrantHTLCPermissions is Script {
         console.log("Digest to sign:", vm.toString(permDigest));
         console.log("Signer address:", signer);
         console.log("Signer KeyHash:", vm.toString(signerKeyHash));
+        console.log("Signer 2 address:", signer2);
+        console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("========================================\n");
 
-        bytes memory permSignature;
-        bool permSignatureReady;
-        string memory permSigHex;
-        bool permSignatureProvided;
-        try vm.envString("SIGNATURE_PERM") returns (string memory sigHexValue) {
-            permSigHex = sigHexValue;
-            permSignatureProvided = true;
-        } catch {}
+        bytes memory signerOneSig;
+        {
+            string memory permSigHex;
+            bool permSignatureProvided;
+            try vm.envString("SIGNATURE_PERM") returns (
+                string memory sigHexValue
+            ) {
+                permSigHex = sigHexValue;
+                permSignatureProvided = bytes(permSigHex).length != 0;
+            } catch {}
 
-        if (permSignatureProvided) {
-            // Parse the signature: format is 0x + 130 hex chars
-            bytes memory sigBytes = vm.parseBytes(permSigHex);
-            require(sigBytes.length == 65, "Signature must be 65 bytes");
+            if (permSignatureProvided) {
+                // Parse the signature: format is 0x + 130 hex chars
+                bytes memory sigBytes = vm.parseBytes(permSigHex);
+                require(sigBytes.length == 65, "Signature must be 65 bytes");
 
-            uint8 v;
-            bytes32 r;
-            bytes32 s;
-            assembly {
-                r := mload(add(sigBytes, 0x20))
-                s := mload(add(sigBytes, 0x40))
-                v := byte(0, mload(add(sigBytes, 0x60)))
-            }
+                bytes32 r;
+                bytes32 s;
+                uint8 v;
+                assembly {
+                    r := mload(add(sigBytes, 0x20))
+                    s := mload(add(sigBytes, 0x40))
+                    v := byte(0, mload(add(sigBytes, 0x60)))
+                }
 
-            // Calculate the EIP-191 "Prefixed" Hash
-            bytes32 ethSignedMessageHash = keccak256(
-                abi.encodePacked("\x19Ethereum Signed Message:\n32", permDigest)
-            );
+                // Calculate the EIP-191 "Prefixed" Hash
+                bytes32 ethSignedMessageHash = keccak256(
+                    abi.encodePacked(
+                        "\x19Ethereum Signed Message:\n32",
+                        permDigest
+                    )
+                );
 
-            // Recover the address using the PREFIXED hash
-            address recoveredAddress = ecrecover(ethSignedMessageHash, v, r, s);
-            address recoveredAddressAlt = address(0);
-
-            // Handle EIP-2093 malleability (v=27 vs v=28)
-            if (recoveredAddress != signer) {
-                uint8 vAlt = (v == 27) ? 28 : 27;
-                recoveredAddressAlt = ecrecover(
+                // Recover the address using the PREFIXED hash
+                address recoveredAddress = ecrecover(
                     ethSignedMessageHash,
-                    vAlt,
+                    v,
                     r,
                     s
                 );
+                address recoveredAddressAlt = address(0);
+
+                // Handle EIP-2093 malleability (v=27 vs v=28)
+                if (recoveredAddress != signer) {
+                    uint8 vAlt = (v == 27) ? 28 : 27;
+                    recoveredAddressAlt = ecrecover(
+                        ethSignedMessageHash,
+                        vAlt,
+                        r,
+                        s
+                    );
+                }
+
+                bool isMatch = (recoveredAddress == signer) ||
+                    (recoveredAddressAlt == signer);
+
+                // Fix 'v' if the alternate was the correct one
+                if (
+                    recoveredAddressAlt == signer && recoveredAddress != signer
+                ) {
+                    v = (v == 27) ? 28 : 27;
+                }
+
+                require(
+                    isMatch,
+                    "Signature verification failed: Signer does not match (EIP-191 check)."
+                );
+
+                // Pack the signer signature: r + s + v + signerKeyHash + prehashFlag(0)
+                signerOneSig = abi.encodePacked(
+                    r,
+                    s,
+                    v,
+                    signerKeyHash,
+                    uint8(0)
+                );
             }
-
-            bool isMatch = (recoveredAddress == signer) ||
-                (recoveredAddressAlt == signer);
-
-            // Fix 'v' if the alternate was the correct one
-            if (recoveredAddressAlt == signer && recoveredAddress != signer) {
-                v = (v == 27) ? 28 : 27;
-            }
-
-            require(
-                isMatch,
-                "Signature verification failed: Signer does not match (EIP-191 check)."
-            );
-
-            // Pack the signer signature: r + s + v + signerKeyHash + prehashFlag(0)
-            bytes memory signerSig = abi.encodePacked(
-                r,
-                s,
-                v,
-                signerKeyHash,
-                uint8(0)
-            );
-
-            // Wrap in multisig format: abi.encode(bytes[] innerSigs) || multisigKeyHash || uint8(0)
-            // Since threshold = 1, we only need 1 signature
-            bytes[] memory innerSignatures = new bytes[](1);
-            innerSignatures[0] = signerSig;
-
-            // Pack multisig signature: abi.encode(innerSignatures) || multisigKeyHash || uint8(0)
-            permSignature = abi.encodePacked(
-                abi.encode(innerSignatures),
-                multisigKeyHash,
-                uint8(0)
-            );
-            permSignatureReady = true;
         }
 
-        if (!permSignatureReady) {
+        if (signerOneSig.length == 0) {
             console.log("\n========================================");
             console.log("GET DIGEST TO SIGN (PERMISSIONS)");
             console.log("========================================");
@@ -296,6 +238,28 @@ contract GrantHTLCPermissions is Script {
             console.log("========================================\n");
             return;
         }
+
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(
+            signer2PrivateKey,
+            permDigest
+        );
+        bytes memory signerTwoSig = abi.encodePacked(
+            r2,
+            s2,
+            v2,
+            signer2KeyHash,
+            uint8(0)
+        );
+
+        bytes[] memory innerSignatures = new bytes[](2);
+        innerSignatures[0] = signerOneSig;
+        innerSignatures[1] = signerTwoSig;
+
+        bytes memory permSignature = abi.encodePacked(
+            abi.encode(innerSignatures),
+            multisigKeyHash,
+            uint8(0)
+        );
 
         // Execute permissions grant
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -321,6 +285,89 @@ contract GrantHTLCPermissions is Script {
         console.log("Spend permissions:");
         console.log("  - Native token (address(0)): 100 ETH (Forever period)");
         console.log("========================================\n");
+    }
+
+    function _buildPermissionCalls(
+        address gardenSolver,
+        bytes32 executorKeyHash,
+        address[] memory htlcAddresses
+    ) internal pure returns (ERC7821.Call[] memory permissionCalls) {
+        bytes4 initiateSel = bytes4(
+            keccak256("initiate(address,uint256,uint256,bytes32)")
+        );
+        bytes4 redeemSel = bytes4(keccak256("redeem(bytes32,bytes)"));
+        bytes4 refundSel = bytes4(keccak256("refund(bytes32)"));
+        bytes4 instantRefundSel = bytes4(
+            keccak256("instantRefund(bytes32,bytes)")
+        );
+
+        uint256 numCalls = htlcAddresses.length * 4 + 1;
+        permissionCalls = new ERC7821.Call[](numCalls);
+        uint256 callIndex;
+
+        for (uint256 i = 0; i < htlcAddresses.length; i++) {
+            address htlc = htlcAddresses[i];
+
+            permissionCalls[callIndex++] = ERC7821.Call({
+                to: gardenSolver,
+                value: 0,
+                data: abi.encodeWithSelector(
+                    GuardedExecutor.setCanExecute.selector,
+                    executorKeyHash,
+                    htlc,
+                    initiateSel,
+                    true
+                )
+            });
+
+            permissionCalls[callIndex++] = ERC7821.Call({
+                to: gardenSolver,
+                value: 0,
+                data: abi.encodeWithSelector(
+                    GuardedExecutor.setCanExecute.selector,
+                    executorKeyHash,
+                    htlc,
+                    redeemSel,
+                    true
+                )
+            });
+
+            permissionCalls[callIndex++] = ERC7821.Call({
+                to: gardenSolver,
+                value: 0,
+                data: abi.encodeWithSelector(
+                    GuardedExecutor.setCanExecute.selector,
+                    executorKeyHash,
+                    htlc,
+                    refundSel,
+                    true
+                )
+            });
+
+            permissionCalls[callIndex++] = ERC7821.Call({
+                to: gardenSolver,
+                value: 0,
+                data: abi.encodeWithSelector(
+                    GuardedExecutor.setCanExecute.selector,
+                    executorKeyHash,
+                    htlc,
+                    instantRefundSel,
+                    true
+                )
+            });
+        }
+
+        permissionCalls[callIndex] = ERC7821.Call({
+            to: gardenSolver,
+            value: 0,
+            data: abi.encodeWithSelector(
+                GuardedExecutor.setSpendLimit.selector,
+                executorKeyHash,
+                address(0),
+                GuardedExecutor.SpendPeriod.Forever,
+                100 ether
+            )
+        });
     }
 
     /// @notice Parse comma-separated addresses or single address
