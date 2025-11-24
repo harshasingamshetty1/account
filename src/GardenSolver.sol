@@ -12,6 +12,7 @@ contract GardenSolver is IthacaAccount, Pausable {
     uint256 public cooldownPeriod;
 
     error GardenSolver__TargetNotWhitelisted();
+    error GardenSolver__IncorrectFunctionSelector(bytes4 expected);
     error GardenSolver__ExecuteCallFailed();
     error GardenSolver__AlreadyWhitelisted();
     error GardenSolver__NotWhitelisted();
@@ -82,7 +83,9 @@ contract GardenSolver is IthacaAccount, Pausable {
         whitelistingTimestamps[addr] = 0;
     }
 
-    function execute(bytes32, bytes calldata) public payable virtual override {}
+    function execute(bytes32, bytes calldata) public payable virtual override {
+        revert GardenSolver__IncorrectFunctionSelector(0x6171d1c9);
+    }
 
     function execute(Call[] calldata calls, bytes calldata opData) external whenNotPaused {
         _execute(bytes32(0), opData, calls, opData); // @note the first two values are placeholders
@@ -99,13 +102,13 @@ contract GardenSolver is IthacaAccount, Pausable {
         TokenTransferLib.safeTransfer(token, recipient, amount);
 
         bytes32 keyHash = getContextKeyHash();
-        
+
         if (!_isSuperAdmin(keyHash)) {
             SpendStorage storage spends = _getGuardedExecutorKeyStorage(keyHash).spends;
             _incrementSpent(spends.spends[token], token, amount);
         }
 
-        emit AssetWithdraw(recipient, token , amount);
+        emit AssetWithdraw(recipient, token, amount);
     }
 
     function pause() external onlyThis whenNotPaused {

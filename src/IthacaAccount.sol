@@ -583,7 +583,7 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
         } else if (key.keyType == KeyType.Secp256k1) {
             address signer = abi.decode(key.publicKey, (address));
 
-            bool validRaw = SignatureCheckerLib.isValidSignatureNowCalldata(
+            bool validRawSignature = SignatureCheckerLib.isValidSignatureNowCalldata(
                 signer,
                 digest,
                 signature
@@ -593,13 +593,13 @@ contract IthacaAccount is IIthacaAccount, EIP712, GuardedExecutor {
                 abi.encodePacked("\x19Ethereum Signed Message:\n32", digest)
             );
 
-            bool validLedger = SignatureCheckerLib.isValidSignatureNowCalldata(
+            bool validEip191Signature = SignatureCheckerLib.isValidSignatureNowCalldata(
                 signer,
                 ethSignedDigest,
                 signature
             );
 
-            isValid = validRaw || validLedger;
+            isValid = validRawSignature || validEip191Signature;
         } else if (key.keyType == KeyType.External) {
             // The public key of an external key type HAS to be 32 bytes.
             // Top 20 bytes: address of the signer.
