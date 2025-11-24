@@ -11,11 +11,17 @@ contract GardenSolver is IthacaAccount, Pausable {
     mapping(address => uint256) public whitelistingTimestamps;
     uint256 public cooldownPeriod;
 
+    // 0xf9d7a19f
     error GardenSolver__TargetNotWhitelisted();
-    error GardenSolver__IncorrectFunctionSelector(bytes4 expected);
+    // 0x7a318046
+    error GardenSolver__MultisigInitFailed();
+    // 0x368aa983
     error GardenSolver__ExecuteCallFailed();
+    // 0x34d2a08e
     error GardenSolver__AlreadyWhitelisted();
+    // 0xea7e88e1
     error GardenSolver__NotWhitelisted();
+    // 0xa87b88cc
     error GardenSolver__ZeroValue();
 
     event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
@@ -60,7 +66,7 @@ contract GardenSolver is IthacaAccount, Pausable {
                     "initConfig(bytes32,uint256,bytes32[])", multisigKeyHash, threshold, keyHashes
                 )
             );
-            require(success, "Multisig init failed");
+            require(success, GardenSolver__MultisigInitFailed());
         }
     }
 
@@ -81,10 +87,6 @@ contract GardenSolver is IthacaAccount, Pausable {
         require(whitelistedAddresses[addr], GardenSolver__NotWhitelisted());
         whitelistedAddresses[addr] = false;
         whitelistingTimestamps[addr] = 0;
-    }
-
-    function execute(bytes32, bytes calldata) public payable virtual override {
-        revert GardenSolver__IncorrectFunctionSelector(0x6171d1c9);
     }
 
     function execute(Call[] calldata calls, bytes calldata opData) external whenNotPaused {
