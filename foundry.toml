@@ -10,8 +10,7 @@ solc_version = "0.8.28"
 bytecode_hash = "none"
 cbor_metadata = false
 optimizer = true
-via_ir = true
-optimizer_runs = 0
+optimizer_runs = 200
 fs_permissions = [{ access = "read-write", path = "deploy/config.toml" }]
 
 [fmt]

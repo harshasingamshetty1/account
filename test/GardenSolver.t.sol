@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import "./Base.t.sol";
 import {GardenSolver} from "../src/GardenSolver.sol";
 import {IthacaAccount} from "../src/IthacaAccount.sol";
+import{GuardedExecutor} from "../src/GuardedExecutor.sol";
 import {MultiSigSigner} from "../src/MultiSigSigner.sol";
 import {ERC7821} from "solady/accounts/ERC7821.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
@@ -1127,5 +1128,375 @@ contract GardenAccountTest is BaseTest {
     {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk.privateKey, digest);
         return abi.encodePacked(r, s, v, keyHash, uint8(0));
+    }
+
+    // ============ Withdraw Function Tests ============
+
+    /// @notice Test withdraw with admin key (no spend limits required)
+    function testAdminKeyCanWithdrawAfterCooldown() public {
+        // Setup: Fund the account and whitelist recipient
+        uint256 withdrawAmount = 0.5 ether;
+        address recipient = makeAddr("withdraw_recipient");
+        
+        vm.deal(address(gardenAccount), 1 ether);
+        
+        // Whitelist the recipient
+        ERC7821.Call[] memory whitelistCalls = new ERC7821.Call[](1);
+        whitelistCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.whitelistAddress.selector, 
+            recipient
+        );
+        
+        uint256 nonce = gardenAccount.getNonce(0);
+        bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(whitelistCalls, nonce));
+        bytes memory opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(whitelistCalls, opData);
+        
+        // Verify recipient is whitelisted
+        assertTrue(gardenAccount.whitelistedAddresses(recipient), "Recipient should be whitelisted");
+        
+        // Fast forward past cooldown period
+        uint256 cooldownPeriod = gardenAccount.cooldownPeriod();
+        vm.warp(block.timestamp + cooldownPeriod + 1);
+        
+        // Withdraw ETH using admin key
+        ERC7821.Call[] memory withdrawCalls = new ERC7821.Call[](1);
+        withdrawCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.withdraw.selector,
+            recipient,
+            address(0), // ETH
+            withdrawAmount
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(adminKey, gardenAccount.computeDigest(withdrawCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        uint256 recipientBalanceBefore = recipient.balance;
+        uint256 accountBalanceBefore = address(gardenAccount).balance;
+        
+        gardenAccount.execute(withdrawCalls, opData);
+        
+        // Verify balances changed correctly
+        assertEq(
+            recipient.balance,
+            recipientBalanceBefore + withdrawAmount,
+            "Recipient should receive withdrawn ETH"
+        );
+        assertEq(
+            address(gardenAccount).balance,
+            accountBalanceBefore - withdrawAmount,
+            "Account balance should decrease"
+        );
+    }
+
+    /// @notice Test withdraw with non-super admin key (requires spend limits and canExecute)
+    function testNonSuperAdminKeyCanWithdrawWithPermissions() public {
+        // Setup: Fund the account and whitelist recipient
+        uint256 withdrawAmount = 0.3 ether;
+        address recipient = makeAddr("withdraw_recipient_2");
+        
+        vm.deal(address(gardenAccount), 5 ether);
+        
+        // Get the non-super admin key hash
+        bytes32 nonAdminKeyHash = nonSuperAdminKey.keyHash;
+        
+        // Step 1: Whitelist the recipient (using admin key)
+        ERC7821.Call[] memory whitelistCalls = new ERC7821.Call[](1);
+        whitelistCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.whitelistAddress.selector, 
+            recipient
+        );
+        
+        uint256 nonce = gardenAccount.getNonce(0);
+        bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(whitelistCalls, nonce));
+        bytes memory opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(whitelistCalls, opData);
+        
+        // Step 2: Set permissions for non-super admin key (using admin key)
+        // 2a. Allow execution of withdraw function
+        // 2b. Set spend limit for native token (address(0))
+        
+        ERC7821.Call[] memory permissionCalls = new ERC7821.Call[](2);
+        
+        // Allow withdraw function execution on this contract
+        bytes4 withdrawSelector = GardenSolver.withdraw.selector;
+        permissionCalls[0].data = abi.encodeWithSelector(
+            GuardedExecutor.setCanExecute.selector,
+            nonAdminKeyHash,
+            address(gardenAccount), // target is this contract
+            withdrawSelector,
+            true
+        );
+        
+        // Set spend limit: 1 ETH per day for native token
+        permissionCalls[1].data = abi.encodeWithSelector(
+            GuardedExecutor.setSpendLimit.selector,
+            nonAdminKeyHash,
+            address(0), // native token
+            GuardedExecutor.SpendPeriod.Day,
+            1 ether // limit
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(adminKey, gardenAccount.computeDigest(permissionCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(permissionCalls, opData);
+        
+        // Verify permissions were set
+        assertTrue(
+            gardenAccount.canExecute(
+                nonAdminKeyHash,
+                address(gardenAccount),
+                abi.encodeWithSelector(withdrawSelector, recipient, address(0), withdrawAmount)
+            ),
+            "Non-admin key should be able to execute withdraw"
+        );
+        
+        // Step 3: Fast forward past cooldown period
+        uint256 cooldownPeriod = gardenAccount.cooldownPeriod();
+        vm.warp(block.timestamp + cooldownPeriod + 1);
+        
+        // Step 4: Execute withdraw using non-super admin key
+        ERC7821.Call[] memory withdrawCalls = new ERC7821.Call[](1);
+        withdrawCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.withdraw.selector,
+            recipient,
+            address(0), // ETH
+            withdrawAmount
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(nonSuperAdminKey, gardenAccount.computeDigest(withdrawCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        uint256 recipientBalanceBefore = recipient.balance;
+        uint256 accountBalanceBefore = address(gardenAccount).balance;
+        
+        gardenAccount.execute(withdrawCalls, opData);
+        
+        // Verify balances changed correctly
+        assertEq(
+            recipient.balance,
+            recipientBalanceBefore + withdrawAmount,
+            "Recipient should receive withdrawn ETH"
+        );
+        assertEq(
+            address(gardenAccount).balance,
+            accountBalanceBefore - withdrawAmount,
+            "Account balance should decrease"
+        );
+        
+        // Verify spend was tracked
+        GuardedExecutor.SpendInfo[] memory spendInfos = gardenAccount.spendInfos(nonAdminKeyHash);
+        assertEq(spendInfos.length, 1, "Should have one spend info entry");
+        assertEq(spendInfos[0].token, address(0), "Spend should be for native token");
+        assertEq(spendInfos[0].spent, withdrawAmount, "Current spent should match withdraw amount");
+    }
+
+    /// @notice Test that non-super admin key cannot withdraw without canExecute permission
+    function testNonSuperAdminKeyCannotWithdrawWithoutCanExecute() public {
+        // Setup: Fund the account and whitelist recipient
+        uint256 withdrawAmount = 0.3 ether;
+        address recipient = makeAddr("withdraw_recipient_3");
+        
+        vm.deal(address(gardenAccount), 1 ether);
+        
+        bytes32 nonAdminKeyHash = nonSuperAdminKey.keyHash;
+        
+        // Whitelist the recipient
+        ERC7821.Call[] memory whitelistCalls = new ERC7821.Call[](1);
+        whitelistCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.whitelistAddress.selector, 
+            recipient
+        );
+        
+        uint256 nonce = gardenAccount.getNonce(0);
+        bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(whitelistCalls, nonce));
+        bytes memory opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(whitelistCalls, opData);
+        
+        // Set ONLY spend limit, but NOT canExecute permission
+        ERC7821.Call[] memory permissionCalls = new ERC7821.Call[](1);
+        permissionCalls[0].data = abi.encodeWithSelector(
+            GuardedExecutor.setSpendLimit.selector,
+            nonAdminKeyHash,
+            address(0),
+            GuardedExecutor.SpendPeriod.Day,
+            1 ether
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(adminKey, gardenAccount.computeDigest(permissionCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(permissionCalls, opData);
+        
+        // Fast forward past cooldown
+        uint256 cooldownPeriod = gardenAccount.cooldownPeriod();
+        vm.warp(block.timestamp + cooldownPeriod + 1);
+        
+        // Try to withdraw - should fail
+        ERC7821.Call[] memory withdrawCalls = new ERC7821.Call[](1);
+        withdrawCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.withdraw.selector,
+            recipient,
+            address(0),
+            withdrawAmount
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(nonSuperAdminKey, gardenAccount.computeDigest(withdrawCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        vm.expectRevert();
+        gardenAccount.execute(withdrawCalls, opData);
+    }
+
+    /// @notice Test that non-super admin key cannot withdraw without spend limits
+    function testNonSuperAdminKeyCannotWithdrawWithoutSpendLimits() public {
+        // Setup: Fund the account and whitelist recipient
+        uint256 withdrawAmount = 0.3 ether;
+        address recipient = makeAddr("withdraw_recipient_4");
+        
+        vm.deal(address(gardenAccount), 1 ether);
+        
+        bytes32 nonAdminKeyHash = nonSuperAdminKey.keyHash;
+        
+        // Whitelist the recipient
+        ERC7821.Call[] memory whitelistCalls = new ERC7821.Call[](1);
+        whitelistCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.whitelistAddress.selector, 
+            recipient
+        );
+        
+        uint256 nonce = gardenAccount.getNonce(0);
+        bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(whitelistCalls, nonce));
+        bytes memory opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(whitelistCalls, opData);
+        
+        // Set ONLY canExecute permission, but NOT spend limits
+        ERC7821.Call[] memory permissionCalls = new ERC7821.Call[](1);
+        permissionCalls[0].data = abi.encodeWithSelector(
+            GuardedExecutor.setCanExecute.selector,
+            nonAdminKeyHash,
+            address(gardenAccount),
+            GardenSolver.withdraw.selector,
+            true
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(adminKey, gardenAccount.computeDigest(permissionCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(permissionCalls, opData);
+        
+        // Fast forward past cooldown
+        uint256 cooldownPeriod = gardenAccount.cooldownPeriod();
+        vm.warp(block.timestamp + cooldownPeriod + 1);
+        
+        // Try to withdraw - should fail because no spend limits set
+        ERC7821.Call[] memory withdrawCalls = new ERC7821.Call[](1);
+        withdrawCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.withdraw.selector,
+            recipient,
+            address(0),
+            withdrawAmount
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(nonSuperAdminKey, gardenAccount.computeDigest(withdrawCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        vm.expectRevert();
+        gardenAccount.execute(withdrawCalls, opData);
+    }
+
+    /// @notice Test withdraw ERC20 tokens with non-super admin key
+    function testNonSuperAdminKeyCanWithdrawERC20WithPermissions() public {
+        // Setup: Mint tokens to account and whitelist recipient
+        uint256 withdrawAmount = 100_000 ether;
+        address recipient = makeAddr("erc20_recipient");
+        
+        erc20Token.mint(address(gardenAccount), 1_000_000 ether);
+        
+        bytes32 nonAdminKeyHash = nonSuperAdminKey.keyHash;
+        
+        // Step 1: Whitelist the recipient
+        ERC7821.Call[] memory whitelistCalls = new ERC7821.Call[](1);
+        whitelistCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.whitelistAddress.selector, 
+            recipient
+        );
+        
+        uint256 nonce = gardenAccount.getNonce(0);
+        bytes memory signature = _sig(adminKey, gardenAccount.computeDigest(whitelistCalls, nonce));
+        bytes memory opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(whitelistCalls, opData);
+        
+        // Step 2: Set permissions for ERC20 withdrawals
+        ERC7821.Call[] memory permissionCalls = new ERC7821.Call[](2);
+        
+        permissionCalls[0].data = abi.encodeWithSelector(
+            GuardedExecutor.setCanExecute.selector,
+            nonAdminKeyHash,
+            address(gardenAccount),
+            GardenSolver.withdraw.selector,
+            true
+        );
+        
+        permissionCalls[1].data = abi.encodeWithSelector(
+            GuardedExecutor.setSpendLimit.selector,
+            nonAdminKeyHash,
+            address(erc20Token), // ERC20 token
+            GuardedExecutor.SpendPeriod.Day,
+            500_000 ether // limit
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(adminKey, gardenAccount.computeDigest(permissionCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        gardenAccount.execute(permissionCalls, opData);
+        
+        // Step 3: Fast forward past cooldown
+        uint256 cooldownPeriod = gardenAccount.cooldownPeriod();
+        vm.warp(block.timestamp + cooldownPeriod + 1);
+        
+        // Step 4: Withdraw ERC20 tokens
+        ERC7821.Call[] memory withdrawCalls = new ERC7821.Call[](1);
+        withdrawCalls[0].data = abi.encodeWithSelector(
+            GardenSolver.withdraw.selector,
+            recipient,
+            address(erc20Token),
+            withdrawAmount
+        );
+        
+        nonce = gardenAccount.getNonce(0);
+        signature = _sig(nonSuperAdminKey, gardenAccount.computeDigest(withdrawCalls, nonce));
+        opData = abi.encodePacked(nonce, signature);
+        
+        uint256 recipientBalanceBefore = erc20Token.balanceOf(recipient);
+        uint256 accountBalanceBefore = erc20Token.balanceOf(address(gardenAccount));
+        
+        gardenAccount.execute(withdrawCalls, opData);
+        
+        // Verify token balances
+        assertEq(
+            erc20Token.balanceOf(recipient),
+            recipientBalanceBefore + withdrawAmount,
+            "Recipient should receive tokens"
+        );
+        assertEq(
+            erc20Token.balanceOf(address(gardenAccount)),
+            accountBalanceBefore - withdrawAmount,
+            "Account token balance should decrease"
+        );
     }
 }

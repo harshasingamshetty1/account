@@ -3,7 +3,8 @@ pragma solidity ^0.8.23;
 
 import {IthacaAccount} from "./IthacaAccount.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+// import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {TokenTransferLib} from "./libraries/TokenTransferLib.sol";
 
 contract GardenSolver is IthacaAccount, Pausable {
     mapping(address => bool) public whitelistedAddresses;
@@ -17,6 +18,7 @@ contract GardenSolver is IthacaAccount, Pausable {
     error GardenSolver__ZeroValue();
 
     event CooldownPeriodUpdated(uint256 indexed newCooldownPeriod);
+    event AssetWithdraw(address indexed to, address indexed keyhash, uint256 indexed amount);
 
     constructor(
         address orchestrator,
@@ -94,15 +96,16 @@ contract GardenSolver is IthacaAccount, Pausable {
             revert GardenSolver__TargetNotWhitelisted();
         }
 
-        if (token == address(0)) {
-            (bool success,) = recipient.call{value: amount}("");
-            if (!success) {
-                revert GardenSolver__ExecuteCallFailed();
-            }
-            return;
-        } else {
-            IERC20(token).transfer(recipient, amount);
+        TokenTransferLib.safeTransfer(token, recipient, amount);
+
+        bytes32 keyHash = getContextKeyHash();
+        
+        if (!_isSuperAdmin(keyHash)) {
+            SpendStorage storage spends = _getGuardedExecutorKeyStorage(keyHash).spends;
+            _incrementSpent(spends.spends[token], token, amount);
         }
+
+        emit AssetWithdraw(recipient, token , amount);
     }
 
     function pause() external onlyThis whenNotPaused {
