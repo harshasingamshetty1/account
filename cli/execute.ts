@@ -171,7 +171,6 @@ async function executeGrantPermissions(
   console.log("========================================");
   console.log(`Granting permissions to: ${PERMISSION_ADDRESS}`);
   console.log("========================================\n");
-
   // Combine both htlcs and nativeHtlcs for permissions
   const allHtlcs = [...(chain.htlcs || []), ...(chain.nativeHtlcs || [])];
 
@@ -181,7 +180,7 @@ async function executeGrantPermissions(
     );
   }
 
-  const env = {
+  const baseEnv = {
     ...process.env,
     GARDEN_SOLVER: deployed.gardenSolver,
     HTLC_ADDRESSES: allHtlcs.join(","),
@@ -192,54 +191,75 @@ async function executeGrantPermissions(
     DEPLOYER_PRIVATE_KEY: DEPLOYER_PRIVATE_KEY,
   };
 
-  const scriptPath = join(
+  const authScriptPath = join(
     __dirname,
-    "../script/main/AuthorizeExecutorAndGrantPermissions.s.sol"
+    "../script/main/AuthorizeExecutor.s.sol"
+  );
+  const permScriptPath = join(
+    __dirname,
+    "../script/main/GrantHTLCPermissions.s.sol"
   );
 
   // Step 2a: Get authorization digest
-  let command = `forge script ${scriptPath} --rpc-url ${chain.rpc} -vvv`;
+  const env2a = { ...baseEnv };
+  delete (env2a as any).SIGNATURE_AUTH;
+
+  let command = `forge script ${authScriptPath} --rpc-url ${chain.rpc} -vvv`;
 
   console.log("Step 2a: Getting authorization digest to sign...");
   let forgeOutput = "";
   try {
-    forgeOutput = execSync(command, {
-      env,
+    const result = execSync(command, {
+      env: env2a,
       encoding: "utf-8",
       stdio: "pipe",
-    }).toString();
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+    });
+    forgeOutput = result.toString();
     console.log(forgeOutput);
   } catch (error: any) {
-    forgeOutput = error.stdout?.toString() || "";
+    forgeOutput =
+      (error.stdout?.toString() || "") + (error.stderr?.toString() || "");
     console.log(forgeOutput);
-    // Continue even if there's an error - we just need the digest
   }
 
-  // Extract authorization digest from output
+  // Extract authorization digest
   const authDigestMatch = forgeOutput.match(
-    /STEP 1: AUTHORIZATION - SIGNING INFORMATION[\s\S]*?Digest to sign:\s+(0x[a-fA-F0-9]{64})/i
+    /AUTHORIZATION - SIGNING INFORMATION[\s\S]*?Digest to sign:\s+(0x[a-fA-F0-9]{64})/i
   );
 
   if (!authDigestMatch) {
-    // If SIGNATURE_AUTH is already set, skip signing and go straight to broadcast
-    if (process.env.SIGNATURE_AUTH) {
-      console.log(
-        "SIGNATURE_AUTH already set, proceeding to authorization...\n"
+    console.log(
+      "\n⚠️  Could not extract authorization digest from output. Please check the logs above.\n"
+    );
+    // Debug: show a snippet of the output to help diagnose
+    if (forgeOutput.length > 0) {
+      const lines = forgeOutput.split("\n");
+      const relevantLines = lines.filter(
+        (line) =>
+          line.toLowerCase().includes("digest") ||
+          line.toLowerCase().includes("authorization") ||
+          line.toLowerCase().includes("step 1")
       );
-    } else {
-      console.log(
-        "\n⚠️  Could not extract authorization digest from output. Please check the logs above.\n"
-      );
-      return;
+      if (relevantLines.length > 0) {
+        console.log("Relevant output lines:");
+        relevantLines.slice(0, 10).forEach((line) => console.log(`  ${line}`));
+      }
     }
-  } else {
+    return;
+  }
+
+  // Now we have the digest, sign it if not already signed
+  if (!process.env.SIGNATURE_AUTH) {
+    if (!authDigestMatch) {
+      throw new Error("Authorization digest not found");
+    }
     const authDigest = authDigestMatch[1];
     console.log(
       `\n🔐 Signing authorization digest with hardware wallet: ${authDigest}`
     );
     console.log("Please approve on your hardware wallet...\n");
 
-    // Execute cast wallet sign --ledger
     try {
       const signCommand = `cast wallet sign --ledger ${authDigest}`;
       const signatureOutput = execSync(signCommand, {
@@ -249,7 +269,6 @@ async function executeGrantPermissions(
         .toString()
         .trim();
 
-      // Parse signature from output
       const signature = signatureOutput.trim();
       if (!signature || !signature.startsWith("0x")) {
         throw new Error("Failed to get signature from cast command");
@@ -258,60 +277,97 @@ async function executeGrantPermissions(
       console.log(
         `✅ Authorization signature obtained: ${signature.substring(0, 20)}...`
       );
-      (env as any).SIGNATURE_AUTH = signature;
       process.env.SIGNATURE_AUTH = signature;
     } catch (error: any) {
       console.error("\n❌ Failed to sign with hardware wallet:", error.message);
       console.error("Make sure your Ledger is connected and unlocked.");
       throw error;
     }
+  } else {
+    console.log("SIGNATURE_AUTH already set, using existing signature...\n");
   }
 
-  // Step 2b: Execute authorization and get permissions digest
-  command = `forge script ${scriptPath} --rpc-url ${chain.rpc} --broadcast -vvv`;
+  // Step 2b: Execute authorization (with broadcast)
+  const env2b = { ...baseEnv };
+  // Ensure SIGNATURE_AUTH is included from process.env
+  if (process.env.SIGNATURE_AUTH) {
+    (env2b as any).SIGNATURE_AUTH = process.env.SIGNATURE_AUTH;
+  }
+  command = `forge script ${authScriptPath} --rpc-url ${chain.rpc} --broadcast -vvv`;
 
-  console.log(
-    "\nStep 2b: Executing authorization and getting permissions digest..."
-  );
+  console.log("\nStep 2b: Executing authorization (broadcasting)...");
+  try {
+    execSync(command, {
+      env: env2b,
+      encoding: "utf-8",
+      stdio: "inherit",
+    });
+    console.log("\n[OK] Authorization executed successfully!\n");
+  } catch (error: any) {
+    console.error("Authorization execution failed:", error.message);
+    throw error;
+  }
+
+  // Step 2c: Get permissions digest (nonce is now updated after Step 2b)
+  const env2c = { ...baseEnv };
+  delete (env2c as any).SIGNATURE_PERM; // Clear this to ensure script prints permissions digest
+
+  command = `forge script ${permScriptPath} --rpc-url ${chain.rpc} -vvv`;
+
+  console.log("\nStep 2c: Getting permissions digest to sign...");
   forgeOutput = "";
   try {
-    forgeOutput = execSync(command, {
-      env,
+    const result = execSync(command, {
+      env: env2c,
       encoding: "utf-8",
       stdio: "pipe",
-    }).toString();
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+    });
+    forgeOutput = result.toString();
     console.log(forgeOutput);
   } catch (error: any) {
-    forgeOutput = error.stdout?.toString() || "";
+    forgeOutput =
+      (error.stdout?.toString() || "") + (error.stderr?.toString() || "");
     console.log(forgeOutput);
-    // Continue to check for permissions digest
   }
 
-  // Extract permissions digest from output
+  // Extract permissions digest
   const permDigestMatch = forgeOutput.match(
-    /STEP 2: PERMISSIONS - SIGNING INFORMATION[\s\S]*?Digest to sign:\s+(0x[a-fA-F0-9]{64})/i
+    /PERMISSIONS - SIGNING INFORMATION[\s\S]*?Digest to sign:\s+(0x[a-fA-F0-9]{64})/i
   );
 
   if (!permDigestMatch) {
-    // If SIGNATURE_PERM is already set, skip signing and go straight to broadcast
-    if (process.env.SIGNATURE_PERM) {
-      console.log(
-        "SIGNATURE_PERM already set, proceeding to permissions grant...\n"
+    console.log(
+      "\n⚠️  Could not extract permissions digest from output. Please check the logs above.\n"
+    );
+    // Debug: show a snippet of the output to help diagnose
+    if (forgeOutput.length > 0) {
+      const lines = forgeOutput.split("\n");
+      const relevantLines = lines.filter(
+        (line) =>
+          line.toLowerCase().includes("digest") ||
+          line.toLowerCase().includes("permissions") ||
+          line.toLowerCase().includes("step 2")
       );
-    } else {
-      console.log(
-        "\n⚠️  Could not extract permissions digest from output. Please check the logs above.\n"
-      );
-      return;
+      if (relevantLines.length > 0) {
+        console.log("Relevant output lines:");
+        relevantLines.slice(0, 10).forEach((line) => console.log(`  ${line}`));
+      }
     }
-  } else {
+    return;
+  }
+
+  // Now we have the digest, sign it if not already signed
+  if (!process.env.SIGNATURE_PERM) {
+    if (!permDigestMatch) {
+      throw new Error("Permissions digest not found");
+    }
     const permDigest = permDigestMatch[1];
     console.log(
       `\n🔐 Signing permissions digest with hardware wallet: ${permDigest}`
     );
     console.log("Please approve on your hardware wallet...\n");
 
-    // Execute cast wallet sign --ledger
     try {
       const signCommand = `cast wallet sign --ledger ${permDigest}`;
       const signatureOutput = execSync(signCommand, {
@@ -321,7 +377,6 @@ async function executeGrantPermissions(
         .toString()
         .trim();
 
-      // Parse signature from output
       const signature = signatureOutput.trim();
       if (!signature || !signature.startsWith("0x")) {
         throw new Error("Failed to get signature from cast command");
@@ -330,20 +385,29 @@ async function executeGrantPermissions(
       console.log(
         `✅ Permissions signature obtained: ${signature.substring(0, 20)}...`
       );
-      (env as any).SIGNATURE_PERM = signature;
       process.env.SIGNATURE_PERM = signature;
     } catch (error: any) {
       console.error("\n❌ Failed to sign with hardware wallet:", error.message);
       console.error("Make sure your Ledger is connected and unlocked.");
       throw error;
     }
+  } else {
+    console.log("SIGNATURE_PERM already set, using existing signature...\n");
   }
 
-  // Step 2c: Final broadcast with both signatures
-  console.log("\nStep 2c: Broadcasting permissions grant...");
+  // Step 2d: Final broadcast with permissions signature
+  const env2d = { ...baseEnv };
+  // Ensure SIGNATURE_PERM is included from process.env
+  if (process.env.SIGNATURE_PERM) {
+    (env2d as any).SIGNATURE_PERM = process.env.SIGNATURE_PERM;
+  }
+
+  command = `forge script ${permScriptPath} --rpc-url ${chain.rpc} --broadcast -vvv`;
+
+  console.log("\nStep 2d: Broadcasting permissions grant...");
   try {
     execSync(command, {
-      env,
+      env: env2d,
       encoding: "utf-8",
       stdio: "inherit",
     });
@@ -535,6 +599,7 @@ async function main() {
     console.log("✓ Native HTLCs configured (no token approval needed)");
   }
   console.log(`✓ HTLC permissions granted to ${PERMISSION_ADDRESS}`);
+
   console.log("========================================\n");
 }
 

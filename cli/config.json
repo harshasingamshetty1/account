@@ -1,10 +1,10 @@
 {
   "chains": [
     {
-      "name": "citrea_testnet",
-      "rpc": "https://rpc.testnet.citrea.xyz",
+      "name": "base_sepolia",
+      "rpc": "https://sepolia.base.org",
       "htlcs": ["0xd1E0Ba2b165726b3a6051b765d4564d030FDcf50"],
-      "nativeHtlcs": ["0x6eb1809A719F494065c35eeeF3ff1c03d4Ffa786"],
+      "nativeHtlcs": [""],
       "fundAmount": "0.001"
     }
   ]
