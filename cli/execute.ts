@@ -33,28 +33,28 @@ if (!HARDWARE_SIGNER_ADDRESS) {
   );
 }
 
-if (!SIGNER_TWO_ADDRESS) {
-  throw new Error(
-    "Missing required configuration. Please set SIGNER_TWO_ADDRESS in .env file."
-  );
-}
+// if (!SIGNER_TWO_ADDRESS) {
+//   throw new Error(
+//     "Missing required configuration. Please set SIGNER_TWO_ADDRESS in .env file."
+//   );
+// }
 
-if (!SIGNER_TWO_PRIVATE_KEY) {
-  throw new Error(
-    "Missing required configuration. Please set SIGNER_TWO_PRIVATE_KEY in .env file."
-  );
-}
+// if (!SIGNER_TWO_PRIVATE_KEY) {
+//   throw new Error(
+//     "Missing required configuration. Please set SIGNER_TWO_PRIVATE_KEY in .env file."
+//   );
+// }
 
 interface DeployedContracts {
   chain: string;
   multiSigSigner: string;
   gardenSolver: string;
   signer1Address: string;
-  signer2Address: string;
-  signer3Address: string;
+  // signer2Address: string;
+  // signer3Address: string;
   signer1KeyHash: string;
-  signer2KeyHash: string;
-  signer3KeyHash: string;
+  // signer2KeyHash: string;
+  // signer3KeyHash: string;
   multisigKeyHash: string;
   deployedAt: string;
 }
