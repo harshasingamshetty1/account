@@ -44,14 +44,14 @@ contract GrantHTLCPermissions is Script {
             signer = vm.envAddress("SIGNER_ADDRESS");
         }
 
-        uint256 signer2PrivateKey = vm.envUint("SIGNER_TWO_PRIVATE_KEY");
-        address signer2 = vm.addr(signer2PrivateKey);
-        try vm.envAddress("SIGNER_TWO_ADDRESS") returns (address expected) {
-            require(
-                expected == signer2,
-                "SIGNER_TWO_ADDRESS does not match derived private key"
-            );
-        } catch {}
+        // uint256 signer2PrivateKey = vm.envUint("SIGNER_TWO_PRIVATE_KEY");
+        // address signer2 = vm.addr(signer2PrivateKey);
+        // try vm.envAddress("SIGNER_TWO_ADDRESS") returns (address expected) {
+        //     require(
+        //         expected == signer2,
+        //         "SIGNER_TWO_ADDRESS does not match derived private key"
+        //     );
+        // } catch {}
 
         // Parse HTLC addresses (comma-separated or single)
         address[] memory htlcAddresses = _parseAddresses(htlcAddressesStr);
@@ -62,7 +62,7 @@ contract GrantHTLCPermissions is Script {
         console.log("GardenSolver:", gardenSolver);
         console.log("Executor Address:", executorAddress);
         console.log("Signer 1 Address:", signer);
-        console.log("Signer 2 Address:", signer2);
+        // console.log("Signer 2 Address:", signer2);
         console.log("HTLC Addresses:");
         for (uint256 i = 0; i < htlcAddresses.length; i++) {
             console.log("  HTLC", i);
@@ -89,13 +89,13 @@ contract GrantHTLCPermissions is Script {
         });
         bytes32 signerKeyHash = solver.hash(signerKey);
 
-        IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
-            expiry: 0,
-            keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: false,
-            publicKey: abi.encode(signer2)
-        });
-        bytes32 signer2KeyHash = solver.hash(signer2Key);
+        // IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
+        //     expiry: 0,
+        //     keyType: IthacaAccount.KeyType.Secp256k1,
+        //     isSuperAdmin: false,
+        //     publicKey: abi.encode(signer2)
+        // });
+        // bytes32 signer2KeyHash = solver.hash(signer2Key);
         // Get multisig key hash from environment (from deployed.json)
         bytes32 multisigKeyHash;
         try vm.envBytes32("MULTISIG_KEY_HASH") returns (bytes32 hash) {
@@ -114,7 +114,7 @@ contract GrantHTLCPermissions is Script {
 
         console.log("Executor KeyHash:", vm.toString(executorKeyHash));
         console.log("Signer KeyHash:", vm.toString(signerKeyHash));
-        console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
+        // console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("");
 
         // Grant permissions to executor
@@ -135,8 +135,8 @@ contract GrantHTLCPermissions is Script {
         console.log("Digest to sign:", vm.toString(permDigest));
         console.log("Signer address:", signer);
         console.log("Signer KeyHash:", vm.toString(signerKeyHash));
-        console.log("Signer 2 address:", signer2);
-        console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
+        // console.log("Signer 2 address:", signer2);
+        // console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("========================================\n");
 
@@ -239,21 +239,21 @@ contract GrantHTLCPermissions is Script {
             return;
         }
 
-        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(
-            signer2PrivateKey,
-            permDigest
-        );
-        bytes memory signerTwoSig = abi.encodePacked(
-            r2,
-            s2,
-            v2,
-            signer2KeyHash,
-            uint8(0)
-        );
+        // (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(
+        //     signer2PrivateKey,
+        //     permDigest
+        // );
+        // bytes memory signerTwoSig = abi.encodePacked(
+        //     r2,
+        //     s2,
+        //     v2,
+        //     signer2KeyHash,
+        //     uint8(0)
+        // );
 
         bytes[] memory innerSignatures = new bytes[](2);
         innerSignatures[0] = signerOneSig;
-        innerSignatures[1] = signerTwoSig;
+        // innerSignatures[1] = signerTwoSig;
 
         bytes memory permSignature = abi.encodePacked(
             abi.encode(innerSignatures),

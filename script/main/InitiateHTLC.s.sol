@@ -22,13 +22,15 @@ import {ERC7821} from "solady/accounts/ERC7821.sol";
 contract InitiateHTLC is Script {
     function run() public {
         // Load configuration from environment variables
-        address gardenSolver = vm.envAddress("GARDEN_SOLVER");
-        address htlc = vm.envAddress("HTLC_ADDRESS");
-        address redeemer = vm.envAddress("REDEEMER_ADDRESS");
-        uint256 timelock = vm.envUint("TIMELOCK");
-        uint256 amount = vm.envUint("AMOUNT");
-        bytes32 secretHash = vm.envBytes32("SECRET_HASH");
-        uint256 oneSignerPrivateKey = vm.envUint("SIGNER_PRIVATE_KEY");
+        address gardenSolver = address(
+            0x9Cd43572587145f6a10608246f54C3477A1862c4
+        ); // vm.envAddress("GARDEN_SOLVER");
+        address htlc = address(0x917cfef972d667dC0FeC76806cB5623585B81493); // vm.envAddress("HTLC_ADDRESS");
+        address redeemer = address(0xD5c78816dD92E81a075129C1D6a6dC5F0D0FF1c8); // vm.envAddress("REDEEMER_ADDRESS");
+        uint256 timelock = 1000000000000000000; // vm.envUint("TIMELOCK");
+        uint256 amount = 1; // vm.envUint("AMOUNT");
+        bytes32 secretHash = keccak256(abi.encode("secret")); // vm.envBytes32("SECRET_HASH");
+        uint256 oneSignerPrivateKey = 0x5c319b00e55338c686c76d6e4cfd2fd640083f1ca07a92fc22b9a561f6da3959; // vm.envUint("SIGNER_PRIVATE_KEY");
 
         address signer1 = vm.addr(oneSignerPrivateKey);
 

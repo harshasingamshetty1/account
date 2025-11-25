@@ -35,8 +35,8 @@ contract AuthorizeExecutor is Script {
         address executorAddress = vm.envAddress("PERMISSION_ADDRESS");
 
         address signer = vm.envAddress("SIGNER_ONE_ADDRESS");
-        uint256 signer2PrivateKey = vm.envUint("SIGNER_TWO_PRIVATE_KEY");
-        address signer2 = vm.addr(signer2PrivateKey);
+        // uint256 signer2PrivateKey = vm.envUint("SIGNER_TWO_PRIVATE_KEY");
+        // address signer2 = vm.addr(signer2PrivateKey);
 
         console.log("\n========================================");
         console.log("Authorize Executor");
@@ -44,7 +44,7 @@ contract AuthorizeExecutor is Script {
         console.log("GardenSolver:", gardenSolver);
         console.log("Executor Address:", executorAddress);
         console.log("Signer 1 Address:", signer);
-        console.log("Signer 2 Address:", signer2);
+        // console.log("Signer 2 Address:", signer2);
         console.log("========================================\n");
 
         GardenSolver solver = GardenSolver(payable(gardenSolver));
@@ -62,16 +62,16 @@ contract AuthorizeExecutor is Script {
             isSuperAdmin: false,
             publicKey: abi.encode(signer)
         });
-        IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
-            expiry: 0,
-            keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: false,
-            publicKey: abi.encode(signer2)
-        });
+        // IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
+        //     expiry: 0,
+        //     keyType: IthacaAccount.KeyType.Secp256k1,
+        //     isSuperAdmin: false,
+        //     publicKey: abi.encode(signer2)
+        // });
 
         bytes32 executorKeyHash = solver.hash(executorKey);
         bytes32 signerKeyHash = solver.hash(signerKey);
-        bytes32 signer2KeyHash = solver.hash(signer2Key);
+        // bytes32 signer2KeyHash = solver.hash(signer2Key);
 
         // Get multisig key hash from environment (from deployed.json)
         bytes32 multisigKeyHash;
@@ -91,7 +91,7 @@ contract AuthorizeExecutor is Script {
 
         console.log("Executor KeyHash:", vm.toString(executorKeyHash));
         console.log("Signer KeyHash:", vm.toString(signerKeyHash));
-        console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
+        // console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("");
 
@@ -116,9 +116,9 @@ contract AuthorizeExecutor is Script {
         console.log("========================================");
         console.log("Digest to sign:", vm.toString(authDigest));
         console.log("Signer address:", signer);
-        console.log("Signer 2 address:", signer2);
+        // console.log("Signer 2 address:", signer2);
         console.log("Signer KeyHash:", vm.toString(signerKeyHash));
-        console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
+        // console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("========================================\n");
 
@@ -221,21 +221,21 @@ contract AuthorizeExecutor is Script {
             return;
         }
 
-        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(
-            signer2PrivateKey,
-            authDigest
-        );
-        bytes memory signerTwoSig = abi.encodePacked(
-            r2,
-            s2,
-            v2,
-            signer2KeyHash,
-            uint8(0)
-        );
+        // (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(
+        //     signer2PrivateKey,
+        //     authDigest
+        // );
+        // bytes memory signerTwoSig = abi.encodePacked(
+        //     r2,
+        //     s2,
+        //     v2,
+        //     signer2KeyHash,
+        //     uint8(0)
+        // );
 
         bytes[] memory innerSignatures = new bytes[](2);
         innerSignatures[0] = signerOneSig;
-        innerSignatures[1] = signerTwoSig;
+        // innerSignatures[1] = signerTwoSig;
 
         bytes memory authSignature = abi.encodePacked(
             abi.encode(innerSignatures),

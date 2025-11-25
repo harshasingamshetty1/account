@@ -6,13 +6,6 @@
       "htlcs": ["0x917cfef972d667dC0FeC76806cB5623585B81493"],
       "nativeHtlcs": [""],
       "fundAmount": "0.0001"
-    },
-    {
-      "name": "citrea_testnet",
-      "rpc": "https://rpc.testnet.citrea.xyz",
-      "htlc": [],
-      "nativeHtlcs": ["0xE413743B51f3cC8b3ac24addf50D18fa138cB0Bb"],
-      "fundAmount": "0.001"
     }
   ]
 }

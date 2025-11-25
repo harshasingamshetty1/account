@@ -29,11 +29,11 @@ interface DeployedContracts {
   multiSigSigner: string;
   gardenSolver: string;
   signer1Address: string;
-  signer2Address: string;
-  signer3Address: string;
+  // signer2Address: string;
+  // signer3Address: string;
   signer1KeyHash: string;
-  signer2KeyHash: string;
-  signer3KeyHash: string;
+  // signer2KeyHash: string;
+  // signer3KeyHash: string;
   multisigKeyHash: string;
   deployedAt: string;
 }
@@ -179,29 +179,29 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     `ℹ️  Using SIGNER_ADDRESS (hardware wallet) as Signer 1: ${signer1Address}`
   );
 
-  let signer2Address: string;
-  let signer3Address: string;
+  // let signer2Address: string;
+  // let signer3Address: string;
 
   // Get remaining signers
-  if (SIGNER_TWO_ADDRESS && SIGNER_THREE_ADDRESS) {
-    signer2Address = ethers.getAddress(SIGNER_TWO_ADDRESS);
-    signer3Address = ethers.getAddress(SIGNER_THREE_ADDRESS);
-  } else if (SIGNER_TWO_PRIVATE_KEY && SIGNER_THREE_PRIVATE_KEY) {
-    signer2Address = deriveDeployerAddress(SIGNER_TWO_PRIVATE_KEY);
-    signer3Address = deriveDeployerAddress(SIGNER_THREE_PRIVATE_KEY);
-  } else {
-    throw new Error(
-      "SIGNER_TWO_ADDRESS and SIGNER_THREE_ADDRESS (or their private keys) are required for deployment."
-    );
-  }
+  // if (SIGNER_TWO_ADDRESS && SIGNER_THREE_ADDRESS) {
+  //   signer2Address = ethers.getAddress(SIGNER_TWO_ADDRESS);
+  //   signer3Address = ethers.getAddress(SIGNER_THREE_ADDRESS);
+  // } else if (SIGNER_TWO_PRIVATE_KEY && SIGNER_THREE_PRIVATE_KEY) {
+  //   signer2Address = deriveDeployerAddress(SIGNER_TWO_PRIVATE_KEY);
+  //   signer3Address = deriveDeployerAddress(SIGNER_THREE_PRIVATE_KEY);
+  // } else {
+  //   throw new Error(
+  //     "SIGNER_TWO_ADDRESS and SIGNER_THREE_ADDRESS (or their private keys) are required for deployment."
+  //   );
+  // }
 
   const deployerAddress = deriveDeployerAddress(DEPLOYER_PRIVATE_KEY);
 
   console.log("📋 Deployment Configuration:");
   console.log(`   Deployer: ${deployerAddress}`);
   console.log(`   Signer 1: ${signer1Address}`);
-  console.log(`   Signer 2: ${signer2Address}`);
-  console.log(`   Signer 3: ${signer3Address}`);
+  // console.log(`   Signer 2: ${signer2Address}`);
+  // console.log(`   Signer 3: ${signer3Address}`);
   console.log("");
 
   const fundAmountEth = chain.fundAmount;
@@ -211,10 +211,10 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
     ...process.env,
     DEPLOYER_PRIVATE_KEY: DEPLOYER_PRIVATE_KEY,
     SIGNER1_ADDRESS: signer1Address,
-    SIGNER2_ADDRESS: signer2Address,
-    SIGNER3_ADDRESS: signer3Address,
+    // SIGNER2_ADDRESS: signer2Address,
+    // SIGNER3_ADDRESS: signer3Address,
     FUND_AMOUNT_WEI: fundAmountWei, //@dev Amount in wei (Solidity expects uint256)
-    MULTISIG_THRESHOLD: "2", // 2 of 3
+    MULTISIG_THRESHOLD: "1", // 2 of 3
   };
 
   console.log(
@@ -249,8 +249,8 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
 
     // need to parse key hashes from console.log output (not available in broadcast artifacts)
     const signer1KeyHash = parseKeyHash(output, "Signer1 KeyHash");
-    const signer2KeyHash = parseKeyHash(output, "Signer2 KeyHash");
-    const signer3KeyHash = parseKeyHash(output, "Signer3 KeyHash");
+    // const signer2KeyHash = parseKeyHash(output, "Signer2 KeyHash");
+    // const signer3KeyHash = parseKeyHash(output, "Signer3 KeyHash");
     const multisigKeyHash = parseKeyHash(output, "Multisig KeyHash");
 
     console.log("✅ Deployment successful!");
@@ -263,11 +263,11 @@ async function deployContracts(chain: ChainConfig): Promise<DeployedContracts> {
       multiSigSigner,
       gardenSolver,
       signer1Address,
-      signer2Address,
-      signer3Address,
+      // signer2Address,
+      // signer3Address,
       signer1KeyHash,
-      signer2KeyHash,
-      signer3KeyHash,
+      // signer2KeyHash,
+      // signer3KeyHash,
       multisigKeyHash,
       deployedAt: new Date().toISOString(),
     };

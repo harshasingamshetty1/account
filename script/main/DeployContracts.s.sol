@@ -24,8 +24,8 @@ contract DeployContracts is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         address signer1 = vm.envAddress("SIGNER1_ADDRESS");
-        address signer2 = vm.envAddress("SIGNER2_ADDRESS");
-        address signer3 = vm.envAddress("SIGNER3_ADDRESS");
+        // address signer2 = vm.envAddress("SIGNER2_ADDRESS");
+        // address signer3 = vm.envAddress("SIGNER3_ADDRESS");
         uint256 fundAmountWei = vm.envUint("FUND_AMOUNT_WEI");
         uint256 threshold = vm.envUint("MULTISIG_THRESHOLD");
         uint256 fundAmountEth = fundAmountWei / 1e18;
@@ -35,8 +35,8 @@ contract DeployContracts is Script {
         console.log("========================================");
         console.log("Deployer:", deployer);
         console.log("Signer 1:", signer1);
-        console.log("Signer 2:", signer2);
-        console.log("Signer 3:", signer3);
+        // console.log("Signer 2:", signer2);
+        // console.log("Signer 3:", signer3);
         console.log("Multisig Threshold:", threshold);
         console.log("========================================\n");
 
@@ -55,18 +55,18 @@ contract DeployContracts is Script {
             isSuperAdmin: false,
             publicKey: abi.encode(signer1)
         });
-        signerKeys[1] = IthacaAccount.Key({
-            expiry: 0,
-            keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: false,
-            publicKey: abi.encode(signer2)
-        });
-        signerKeys[2] = IthacaAccount.Key({
-            expiry: 0,
-            keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: false,
-            publicKey: abi.encode(signer3)
-        });
+        // signerKeys[1] = IthacaAccount.Key({
+        //     expiry: 0,
+        //     keyType: IthacaAccount.KeyType.Secp256k1,
+        //     isSuperAdmin: false,
+        //     publicKey: abi.encode(signer2)
+        // });
+        // signerKeys[2] = IthacaAccount.Key({
+        //     expiry: 0,
+        //     keyType: IthacaAccount.KeyType.Secp256k1,
+        //     isSuperAdmin: false,
+        //     publicKey: abi.encode(signer3)
+        // });
 
         // Deploy GardenSolver
         GardenSolver solver = new GardenSolver{value: fundAmountWei}(
@@ -84,8 +84,8 @@ contract DeployContracts is Script {
 
         // Compute and log key hashes
         bytes32 signer1KeyHash = solver.hash(signerKeys[0]);
-        bytes32 signer2KeyHash = solver.hash(signerKeys[1]);
-        bytes32 signer3KeyHash = solver.hash(signerKeys[2]);
+        // bytes32 signer2KeyHash = solver.hash(signerKeys[1]);
+        // bytes32 signer3KeyHash = solver.hash(signerKeys[2]);
 
         IthacaAccount.Key memory multisigKey = IthacaAccount.Key({
             expiry: 0,
@@ -102,8 +102,8 @@ contract DeployContracts is Script {
         console.log("GardenSolver:", address(solver));
         console.log("\nKey Hashes:");
         console.log("Signer1 KeyHash:", vm.toString(signer1KeyHash));
-        console.log("Signer2 KeyHash:", vm.toString(signer2KeyHash));
-        console.log("Signer3 KeyHash:", vm.toString(signer3KeyHash));
+        // console.log("Signer2 KeyHash:", vm.toString(signer2KeyHash));
+        // console.log("Signer3 KeyHash:", vm.toString(signer3KeyHash));
         console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("========================================");
     }

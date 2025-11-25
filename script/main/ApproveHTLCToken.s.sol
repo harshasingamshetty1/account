@@ -55,8 +55,8 @@ contract ApproveHTLCToken is Script {
         }
 
         address signer = vm.envAddress("SIGNER_ONE_ADDRESS");
-        uint256 signer2PrivateKey = vm.envUint("SIGNER_TWO_PRIVATE_KEY");
-        address signer2 = vm.addr(signer2PrivateKey);
+        // uint256 signer2PrivateKey = vm.envUint("SIGNER_TWO_PRIVATE_KEY");
+        // address signer2 = vm.addr(signer2PrivateKey);
 
         console.log("\n========================================");
         console.log("Approve Tokens to HTLCs (Hardware Wallet)");
@@ -69,7 +69,7 @@ contract ApproveHTLCToken is Script {
             console.log("    Token:", tokens[i]);
         }
         console.log("Signer 1:", signer);
-        console.log("Signer 2:", signer2);
+        // console.log("Signer 2:", signer2);
         console.log("========================================\n");
 
         GardenSolver solver = GardenSolver(payable(gardenSolver));
@@ -84,14 +84,14 @@ contract ApproveHTLCToken is Script {
             isSuperAdmin: false,
             publicKey: abi.encode(signer)
         });
-        IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
-            expiry: 0,
-            keyType: IthacaAccount.KeyType.Secp256k1,
-            isSuperAdmin: false,
-            publicKey: abi.encode(signer2)
-        });
+        // IthacaAccount.Key memory signer2Key = IthacaAccount.Key({
+        //     expiry: 0,
+        //     keyType: IthacaAccount.KeyType.Secp256k1,
+        //     isSuperAdmin: false,
+        //     publicKey: abi.encode(signer2)
+        // });
         bytes32 signerKeyHash = solver.hash(signerKey);
-        bytes32 signer2KeyHash = solver.hash(signer2Key);
+        // bytes32 signer2KeyHash = solver.hash(signer2Key);
 
         // Create approval calls - each HTLC gets approval for its own token
         ERC7821.Call[] memory calls = new ERC7821.Call[](htlcAddresses.length);
@@ -116,9 +116,9 @@ contract ApproveHTLCToken is Script {
         console.log("========================================");
         console.log("Digest to sign:", vm.toString(digest));
         console.log("Signer address:", signer);
-        console.log("Signer 2 address:", signer2);
+        // console.log("Signer 2 address:", signer2);
         console.log("Signer KeyHash:", vm.toString(signerKeyHash));
-        console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
+        // console.log("Signer 2 KeyHash:", vm.toString(signer2KeyHash));
         console.log("Multisig KeyHash:", vm.toString(multisigKeyHash));
         console.log("========================================\n");
 
@@ -232,18 +232,18 @@ contract ApproveHTLCToken is Script {
             return;
         }
 
-        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(signer2PrivateKey, digest);
-        bytes memory signerTwoSig = abi.encodePacked(
-            r2,
-            s2,
-            v2,
-            signer2KeyHash,
-            uint8(0)
-        );
+        // (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(signer2PrivateKey, digest);
+        // bytes memory signerTwoSig = abi.encodePacked(
+        //     r2,
+        //     s2,
+        //     v2,
+        //     signer2KeyHash,
+        //     uint8(0)
+        // );
 
         bytes[] memory innerSignatures = new bytes[](2);
         innerSignatures[0] = signerOneSig;
-        innerSignatures[1] = signerTwoSig;
+        // innerSignatures[1] = signerTwoSig;
 
         bytes memory signature = abi.encodePacked(
             abi.encode(innerSignatures),
