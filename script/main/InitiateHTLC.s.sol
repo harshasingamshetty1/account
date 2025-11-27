@@ -7,30 +7,16 @@ import {IthacaAccount} from "../../src/IthacaAccount.sol";
 import {ERC7821} from "solady/accounts/ERC7821.sol";
 
 /// @title InitiateHTLC
-/// @notice Production script to initiate an HTLC order via signer1
-/// @dev Usage:
-///      forge script script/InitiateHTLC.s.sol --rpc-url $RPC_URL --broadcast
-///
-///      Required environment variables:
-///      - GARDEN_SOLVER: Address of GardenSolver contract
-///      - HTLC_ADDRESS: Address of HTLC contract
-///      - REDEEMER_ADDRESS: Address that can redeem the HTLC
-///      - TIMELOCK: Block number timelock for the HTLC
-///      - AMOUNT: Amount of tokens to lock (in raw units, account for decimals)
-///      - SECRET_HASH: bytes32 hash of the secret (keccak256 of secret)
-///      - SIGNER_PRIVATE_KEY: Private key of signer 1
+/// @notice Script to initiate an HTLC order via signer
 contract InitiateHTLC is Script {
     function run() public {
-        // Load configuration from environment variables
-        address gardenSolver = address(
-            0x9Cd43572587145f6a10608246f54C3477A1862c4
-        ); // vm.envAddress("GARDEN_SOLVER");
-        address htlc = address(0x917cfef972d667dC0FeC76806cB5623585B81493); // vm.envAddress("HTLC_ADDRESS");
-        address redeemer = address(0xD5c78816dD92E81a075129C1D6a6dC5F0D0FF1c8); // vm.envAddress("REDEEMER_ADDRESS");
-        uint256 timelock = 1000000000000000000; // vm.envUint("TIMELOCK");
-        uint256 amount = 1; // vm.envUint("AMOUNT");
-        bytes32 secretHash = keccak256(abi.encode("secret")); // vm.envBytes32("SECRET_HASH");
-        uint256 oneSignerPrivateKey = 0x5c319b00e55338c686c76d6e4cfd2fd640083f1ca07a92fc22b9a561f6da3959; // vm.envUint("SIGNER_PRIVATE_KEY");
+        address gardenSolver = vm.envAddress("GARDEN_SOLVER");
+        address htlc = vm.envAddress("HTLC_ADDRESS");
+        address redeemer = vm.envAddress("REDEEMER_ADDRESS");
+        uint256 timelock = vm.envUint("TIMELOCK");
+        uint256 amount = vm.envUint("AMOUNT");
+        bytes32 secretHash = vm.envBytes32("SECRET_HASH");
+        uint256 oneSignerPrivateKey = vm.envUint("SIGNER_ONE_PRIVATE_KEY");
 
         address signer1 = vm.addr(oneSignerPrivateKey);
 
@@ -47,23 +33,21 @@ contract InitiateHTLC is Script {
         console.log("========================================\n");
 
         GardenSolver solver = GardenSolver(payable(gardenSolver));
-
-        // Compute signer1 key hash
         IthacaAccount.Key memory signer1Key = IthacaAccount.Key({
             expiry: 0,
             keyType: IthacaAccount.KeyType.Secp256k1,
             isSuperAdmin: false,
             publicKey: abi.encode(signer1)
         });
+
         bytes32 signer1KeyHash = solver.hash(signer1Key);
 
-        // Create the initiate call
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
         calls[0] = ERC7821.Call({
             to: htlc,
-            value: 0,
+            value: amount,
             data: abi.encodeWithSignature(
-                "initiate(address,uint256,uint256,bytes32)",
+                "initiate(address,address,uint256,uint256,bytes32)",
                 redeemer,
                 timelock,
                 amount,
@@ -73,11 +57,9 @@ contract InitiateHTLC is Script {
 
         console.log("data:", vm.toString(calls[0].data));
 
-        // Get nonce and compute digest
         uint256 nonce = solver.getNonce(0);
         bytes32 digest = solver.computeDigest(calls, nonce);
 
-        // Sign with signer1
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(oneSignerPrivateKey, digest);
         bytes memory signature = abi.encodePacked(
             r,
@@ -87,12 +69,10 @@ contract InitiateHTLC is Script {
             uint8(0)
         );
 
-        // Execute
         vm.startBroadcast(oneSignerPrivateKey);
         solver.execute(calls, abi.encodePacked(nonce, signature));
         vm.stopBroadcast();
 
-        // Compute order ID (same as HTLC contract does)
         bytes32 orderID = keccak256(
             abi.encode(
                 block.chainid,

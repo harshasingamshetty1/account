@@ -3,9 +3,9 @@
     {
       "name": "base_sepolia",
       "rpc": "https://sepolia.base.org",
-      "htlcs": ["0x917cfef972d667dC0FeC76806cB5623585B81493"],
+      "htlcs": ["0xd1E0Ba2b165726b3a6051b765d4564d030FDcf50"],
       "nativeHtlcs": [""],
-      "fundAmount": "0.0001"
+      "fundAmount": "0"
     }
   ]
 }

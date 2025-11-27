@@ -164,8 +164,10 @@ contract DeployTestExecuteInitiates is Script {
         console.log("\n========================================");
         console.log("ACTUAL KEYS IN DEPLOYED ACCOUNT");
         console.log("========================================");
-        (IthacaAccount.Key[] memory keys, bytes32[] memory actualKeyHashes) =
-            solverAccount.getKeys();
+        (
+            IthacaAccount.Key[] memory keys,
+            bytes32[] memory actualKeyHashes
+        ) = solverAccount.getKeys();
         console.log("Number of keys:", keys.length);
         for (uint256 i = 0; i < actualKeyHashes.length; i++) {
             console.log("Key", i, "Hash:", vm.toString(actualKeyHashes[i]));
@@ -176,7 +178,7 @@ contract DeployTestExecuteInitiates is Script {
         console.log("========================================");
         console.log("If running separately:");
         console.log(
-            "Run: forge script script/DeployTestExecuteInitiates.s.sol --sig \"executeWithMultisig()\" --rpc-url http://localhost:8545 --broadcast"
+            'Run: forge script script/DeployTestExecuteInitiates.s.sol --sig "executeWithMultisig()" --rpc-url http://localhost:8545 --broadcast'
         );
         console.log("========================================\n");
     }
@@ -245,10 +247,14 @@ contract DeployTestExecuteInitiates is Script {
 
     function grantSigner1PermissionsWithMultisig() internal {
         console.log("\n========================================");
-        console.log("PHASE 2: Multisig Approves & Grants signer1 Initiate Permission");
+        console.log(
+            "PHASE 2: Multisig Approves & Grants signer1 Initiate Permission"
+        );
         console.log("========================================\n");
 
-        bytes4 initiateSel = bytes4(keccak256("initiate(address,address,uint256)"));
+        bytes4 initiateSel = bytes4(
+            keccak256("initiate(address,address,uint256)")
+        );
         uint256 approveAmount = 100_000 ether;
 
         ERC7821.Call[] memory calls = new ERC7821.Call[](2);
@@ -257,7 +263,9 @@ contract DeployTestExecuteInitiates is Script {
             to: address(testToken),
             value: 0,
             data: abi.encodeWithSignature(
-                "approve(address,uint256)", address(initiator), approveAmount
+                "approve(address,uint256)",
+                address(initiator),
+                approveAmount
             )
         });
         // Call 1: Grant signer1 permission to call initiate on Initiator
@@ -276,23 +284,41 @@ contract DeployTestExecuteInitiates is Script {
         uint256 nonce = solverAccount.getNonce(0);
         bytes32 digest = solverAccount.computeDigest(calls, nonce);
 
-        bytes memory is1 = _wrapSecpSig(signer1PrivateKey, signer1KeyHash, digest);
-        bytes memory is2 = _wrapSecpSig(signer2PrivateKey, signer2KeyHash, digest);
+        bytes memory is1 = _wrapSecpSig(
+            signer1PrivateKey,
+            signer1KeyHash,
+            digest
+        );
+        bytes memory is2 = _wrapSecpSig(
+            signer2PrivateKey,
+            signer2KeyHash,
+            digest
+        );
 
         bytes[] memory innerSignatures = new bytes[](2);
         innerSignatures[0] = is1;
         innerSignatures[1] = is2;
 
-        bytes memory multisigSignature =
-            abi.encodePacked(abi.encode(innerSignatures), multisigKeyHash, uint8(0));
+        bytes memory multisigSignature = abi.encodePacked(
+            abi.encode(innerSignatures),
+            multisigKeyHash,
+            uint8(0)
+        );
 
         // Anyone can broadcast the transaction with the valid multisig signature
         vm.startBroadcast(deployerPrivateKey);
         // Use GardenSolver's execute(Call[], bytes) signature
-        solverAccount.execute(calls, abi.encodePacked(nonce, multisigSignature));
+        solverAccount.execute(
+            calls,
+            abi.encodePacked(nonce, multisigSignature)
+        );
         vm.stopBroadcast();
 
-        console.log("[OK] Multisig approved", approveAmount / 1e18, "TT to Initiator");
+        console.log(
+            "[OK] Multisig approved",
+            approveAmount / 1e18,
+            "TT to Initiator"
+        );
         console.log("[OK] signer1 granted canExecute for initiate() only\n");
     }
 
@@ -322,19 +348,38 @@ contract DeployTestExecuteInitiates is Script {
         uint256 nonce = solverAccount.getNonce(0);
         bytes32 digest = solverAccount.computeDigest(calls, nonce);
 
-        bytes memory signer1Wrapped = _wrapSecpSig(signer1PrivateKey, signer1KeyHash, digest);
+        bytes memory signer1Wrapped = _wrapSecpSig(
+            signer1PrivateKey,
+            signer1KeyHash,
+            digest
+        );
 
         vm.startBroadcast(signer1PrivateKey);
         // Use GardenSolver's execute(Call[], bytes) signature
         solverAccount.execute(calls, abi.encodePacked(nonce, signer1Wrapped));
         vm.stopBroadcast();
 
-        assert(testToken.balanceOf(address(solverAccount)) == 1_000_000 ether - amount);
+        assert(
+            testToken.balanceOf(address(solverAccount)) ==
+                1_000_000 ether - amount
+        );
         assert(testToken.balanceOf(address(initiator)) == amount);
 
-        console.log("[OK] signer1 initiated transfer of", amount / 1e18, "TT to Initiator");
-        console.log("Initiator balance:", testToken.balanceOf(address(initiator)) / 1e18, "TT");
-        console.log("Account balance:", testToken.balanceOf(address(solverAccount)) / 1e18, "TT");
+        console.log(
+            "[OK] signer1 initiated transfer of",
+            amount / 1e18,
+            "TT to Initiator"
+        );
+        console.log(
+            "Initiator balance:",
+            testToken.balanceOf(address(initiator)) / 1e18,
+            "TT"
+        );
+        console.log(
+            "Account balance:",
+            testToken.balanceOf(address(solverAccount)) / 1e18,
+            "TT"
+        );
     }
 
     function printSummary() internal view {
@@ -351,16 +396,24 @@ contract DeployTestExecuteInitiates is Script {
         console.log("- Signer 2:", signer2);
         console.log("- Signer 3:", signer3);
         console.log("\nToken Balances:");
-        console.log("- Account:", testToken.balanceOf(address(solverAccount)) / 1e18, "TT");
-        console.log("- Initiator:", testToken.balanceOf(address(initiator)) / 1e18, "TT");
+        console.log(
+            "- Account:",
+            testToken.balanceOf(address(solverAccount)) / 1e18,
+            "TT"
+        );
+        console.log(
+            "- Initiator:",
+            testToken.balanceOf(address(initiator)) / 1e18,
+            "TT"
+        );
         console.log("========================================\n");
     }
 
-    function _wrapSecpSig(uint256 privateKey, bytes32 keyHash, bytes32 digest)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function _wrapSecpSig(
+        uint256 privateKey,
+        bytes32 keyHash,
+        bytes32 digest
+    ) internal pure returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v, keyHash, uint8(0));
     }
