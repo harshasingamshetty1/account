@@ -10,7 +10,7 @@ import { DEPLOY_SCRIPT_PATH } from "../config/constants";
 import { DEPLOYER_PRIVATE_KEY, SIGNER_ONE_ADDRESS } from "../config/config";
 
 export async function deployContracts(
-  chain: ChainConfig
+  chain: ChainConfig,
 ): Promise<DeployedContracts> {
   console.log(`[${chain.name}] Deploying...`);
 
@@ -21,7 +21,7 @@ export async function deployContracts(
   const env = buildDeployEnv(
     fundAmountWei,
     SIGNER_ONE_ADDRESS,
-    DEPLOYER_PRIVATE_KEY
+    DEPLOYER_PRIVATE_KEY,
   );
 
   const output = runForgeScript({
@@ -35,7 +35,7 @@ export async function deployContracts(
   const scriptName = "DeployContracts.s.sol";
   const { multiSigSigner, gardenSolver } = parseBroadcastArtifacts(
     chainId,
-    scriptName
+    scriptName,
   );
 
   const signer1KeyHash = parseKeyHash(output, "Signer1 KeyHash");
@@ -55,7 +55,7 @@ export async function deployContracts(
 function buildDeployEnv(
   fundAmountWei: string,
   signer1Address: string,
-  deployerPrivateKey: string
+  deployerPrivateKey: string,
 ): NodeJS.ProcessEnv {
   return {
     ...process.env,

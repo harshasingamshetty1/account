@@ -4,6 +4,7 @@ export interface ChainConfig {
   htlcs?: string[];
   nativeHtlcs?: string[];
   fundAmount?: string;
+  nativeSpendLimit: string;
 }
 
 export interface Config {

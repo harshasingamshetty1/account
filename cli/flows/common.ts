@@ -11,7 +11,7 @@ export function requireEnv(key: string): string {
 }
 
 export const createEnv = (
-  overrides: Record<string, string | undefined> = {}
+  overrides: Record<string, string | undefined> = {},
 ) => {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const [key, value] of Object.entries(overrides)) {
@@ -29,7 +29,7 @@ export function buildBaseEnv(
   htlcs: string[],
   hardwareSigner: string,
   deployerKey: string,
-  extra: Record<string, string | undefined> = {}
+  extra: Record<string, string | undefined> = {},
 ): NodeJS.ProcessEnv {
   return createEnv({
     GARDEN_SOLVER: deployed.gardenSolver,
@@ -47,7 +47,7 @@ export function extractDigest(
   output: string,
   pattern: RegExp,
   label: string,
-  context: string
+  context: string,
 ): string | null {
   const match = output.match(pattern);
   if (match) {
@@ -63,7 +63,7 @@ export function extractDigest(
   console.warn(
     `[${context}] Unable to parse ${label} digest.${
       snippet ? ` Snippet:\n${snippet}` : ""
-    }`
+    }`,
   );
   return null;
 }
@@ -87,7 +87,7 @@ export function ensureSignature(
   key: string,
   digest: string,
   label: string,
-  context: string
+  context: string,
 ): string {
   if (process.env[key]) {
     return process.env[key]!;
@@ -128,7 +128,7 @@ export async function collectSignature(options: SignatureOptions) {
     output,
     options.digestPattern,
     options.label,
-    options.context
+    options.context,
   );
 
   if (!digest) {
@@ -139,6 +139,6 @@ export async function collectSignature(options: SignatureOptions) {
     options.signatureKey,
     digest,
     options.label,
-    options.context
+    options.context,
   );
 }

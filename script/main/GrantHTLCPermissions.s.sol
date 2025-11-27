@@ -15,6 +15,7 @@ contract GrantHTLCPermissions is Script {
         address gardenSolver = vm.envAddress("GARDEN_SOLVER");
         address executorAddress = vm.envAddress("PERMISSION_ADDRESS");
         address signer = vm.envAddress("SIGNER_ONE_ADDRESS");
+        uint256 nativeAmount = vm.envUint("NATIVE_AMOUNT");
         bytes32 multisigKeyHash = vm.envBytes32("MULTISIG_KEY_HASH");
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
@@ -34,7 +35,8 @@ contract GrantHTLCPermissions is Script {
         ERC7821.Call[] memory permissionCalls = _buildPermissionCalls(
             gardenSolver,
             executorKeyHash,
-            htlcAddresses
+            htlcAddresses,
+            nativeAmount
         );
 
         uint256 permNonce = solver.getNonce(0);
@@ -136,7 +138,8 @@ contract GrantHTLCPermissions is Script {
     function _buildPermissionCalls(
         address gardenSolver,
         bytes32 executorKeyHash,
-        address[] memory htlcAddresses
+        address[] memory htlcAddresses,
+        uint256 nativeAmount
     ) internal pure returns (ERC7821.Call[] memory permissionCalls) {
         bytes4 initiateSel = bytes4(
             keccak256("initiate(address,uint256,uint256,bytes32)")
@@ -209,9 +212,9 @@ contract GrantHTLCPermissions is Script {
             data: abi.encodeWithSelector(
                 GuardedExecutor.setSpendLimit.selector,
                 executorKeyHash,
-                address(0),
+                address(0), // native token
                 GuardedExecutor.SpendPeriod.Forever,
-                100 ether
+                nativeAmount
             )
         });
     }

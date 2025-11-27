@@ -2,7 +2,7 @@ import { join } from "path";
 
 export const DEPLOY_SCRIPT_PATH = join(
   __dirname,
-  "../../script/main/DeployContracts.s.sol:DeployContracts"
+  "../../script/main/DeployContracts.s.sol:DeployContracts",
 );
 
 export const SCRIPT_PATHS = {

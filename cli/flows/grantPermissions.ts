@@ -18,6 +18,10 @@ export async function executeGrantPermissions(
     throw new Error(`[${chain.name}] No HTLCs configured`);
   }
 
+  const nativeAmount = chain.nativeSpendLimit;
+  if (!nativeAmount) {
+    throw new Error(`[${chain.name}] nativeSpendLimit not configured`);
+  }
   const baseEnv = buildBaseEnv(
     deployed,
     allHtlcs,
@@ -26,6 +30,7 @@ export async function executeGrantPermissions(
     {
       PERMISSION_ADDRESS,
       SIGNER_TWO_PRIVATE_KEY,
+      NATIVE_AMOUNT: nativeAmount,
     },
   );
 
