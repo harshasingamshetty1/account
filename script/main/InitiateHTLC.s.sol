@@ -41,13 +41,14 @@ contract InitiateHTLC is Script {
         });
 
         bytes32 signer1KeyHash = solver.hash(signer1Key);
+        console.log("Signer 1 KeyHash:", vm.toString(signer1KeyHash));
 
         ERC7821.Call[] memory calls = new ERC7821.Call[](1);
         calls[0] = ERC7821.Call({
             to: htlc,
-            value: amount,
+            value: 0, //@dev change this to amount when we want to initiate native tokens
             data: abi.encodeWithSignature(
-                "initiate(address,address,uint256,uint256,bytes32)",
+                "initiate(address,uint256,uint256,bytes32)",
                 redeemer,
                 timelock,
                 amount,
