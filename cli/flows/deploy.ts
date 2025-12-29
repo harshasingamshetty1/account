@@ -6,7 +6,7 @@ import {
   parseKeyHash,
 } from "../helpers";
 import { ChainConfig, DeployedContracts } from "../types";
-import { DEPLOY_SCRIPT_PATH } from "../config/constants";
+import { SCRIPT_PATHS } from "../config/constants";
 import { DEPLOYER_PRIVATE_KEY, SIGNER_ONE_ADDRESS } from "../config/config";
 
 export async function deployContracts(
@@ -25,7 +25,7 @@ export async function deployContracts(
   );
 
   const output = runForgeScript({
-    scriptPath: DEPLOY_SCRIPT_PATH,
+    scriptPath: SCRIPT_PATHS.deploy,
     rpc: chain.rpc,
     env,
     broadcast: true,

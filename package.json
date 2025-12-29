@@ -1,22 +1,22 @@
 {
-  "name": "ithaca-account",
-  "version": "0.5.7",
-  "description": "EIP-7702 account for Ithaca Porto",
-  "license": "MIT",
-  "scripts": {
-    "tests": "forge test --no-match-contract UpgradeTests",
-    "deploy": "tsx cli/deploy.ts",
-    "execute": "tsx cli/execute.ts",
-    "format": "prettier --write 'cli/**/*.ts'"
-  },
-  "dependencies": {
-    "dotenv": "^17.2.3",
-    "ethers": "^6.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.0.0",
-    "prettier": "^3.0.0"
-  }
+    "name": "ithaca-account",
+    "version": "0.5.7",
+    "description": "EIP-7702 account for Ithaca Porto",
+    "license": "MIT",
+    "scripts": {
+        "tests": "forge test --no-match-contract UpgradeTests",
+        "deploy": "tsx cli/deploy.ts",
+        "execute": "tsx cli/execute.ts",
+        "format": "prettier --write 'cli/**/*.ts'"
+    },
+    "dependencies": {
+        "dotenv": "^17.2.3",
+        "ethers": "^6.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "tsx": "^4.0.0",
+        "typescript": "^5.0.0",
+        "prettier": "^3.0.0"
+    }
 }

@@ -56,6 +56,12 @@ export function runForgeScript({
       throw error;
     }
 
-    return combinedOutput;
+    // TODO: remove this later, i am using this for logs
+    // Always return output even on error for digest extraction
+    if (combinedOutput) {
+      return combinedOutput;
+    }
+
+    throw error;
   }
 }

@@ -1,0 +1,16 @@
+{
+    "apiUrl": "https://testnet.api.garden.finance/v2/chains",
+    "rpcMapping": {
+        "arbitrum_sepolia": "https://arbitrum-sepolia-rpc.publicnode.com",
+        "base_sepolia": "https://base-sepolia-rpc.publicnode.com",
+        "ethereum_sepolia": "https://ethereum-sepolia-rpc.publicnode.com",
+        "citrea_testnet": "https://rpc.testnet.citreascan.com",
+        "monad_testnet": "https://testnet.monadexplorer.com",
+        "alpen_testnet": "https://rpc.pectra-testnet.alpenlabs.io",
+        "bnbchain_testnet": "https://bsc-testnet-rpc.publicnode.com"
+    },
+    "defaults": {
+        "fundAmount": "0.0001",
+        "nativeSpendLimit": "1000000000000000000000000"
+    }
+}

@@ -142,3 +142,48 @@ export async function collectSignature(options: SignatureOptions) {
     options.context,
   );
 }
+
+/**
+ * executing a script with signature collection and broadcasting
+ */
+export interface ExecuteWithSignatureOptions {
+  scriptPath: string;
+  rpc: string;
+  baseEnv: NodeJS.ProcessEnv;
+  digestPattern: RegExp;
+  digestLabel: string;
+  signatureKey?: string;
+  context: string;
+  successMessage?: string;
+}
+
+export function executeWithSignature(
+  options: ExecuteWithSignatureOptions,
+): void {
+  const signatureKey = options.signatureKey || "SIGNATURE";
+
+  // Signature should already be collected before calling this
+  const signature = process.env[signatureKey];
+  if (!signature) {
+    throw new Error(
+      `[${options.context}] ${options.digestLabel} signature missing`,
+    );
+  }
+
+  try {
+    runForgeScript({
+      scriptPath: options.scriptPath,
+      rpc: options.rpc,
+      env: createEnv({ ...options.baseEnv, [signatureKey]: signature }),
+      broadcast: true,
+    });
+
+    delete process.env[signatureKey];
+    if (options.successMessage) {
+      console.log(`[${options.context}] ${options.successMessage}`);
+    }
+  } catch (error) {
+    delete process.env[signatureKey];
+    throw error;
+  }
+}

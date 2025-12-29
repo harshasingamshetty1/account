@@ -9,17 +9,21 @@ import {Brutalizer} from "../Brutalizer.sol";
 contract MockOrchestrator is Orchestrator, Brutalizer {
     error NoRevertEncountered();
 
-    constructor() Orchestrator() {}
-
-    function computeDigest(SignedCall calldata preCall) public view returns (bytes32) {
+    function computeDigest(
+        SignedCall calldata preCall
+    ) public view returns (bytes32) {
         return _computeDigest(preCall);
     }
 
-    function computeDigest(Intent calldata intent) public view returns (bytes32) {
+    function computeDigest(
+        Intent calldata intent
+    ) public view returns (bytes32) {
         return _computeDigest(intent);
     }
 
-    function simulateFailed(bytes calldata encodedIntent) public payable virtual {
+    function simulateFailed(
+        bytes calldata encodedIntent
+    ) public payable virtual {
         _execute(encodedIntent, type(uint256).max, 1);
         revert NoRevertEncountered();
     }
