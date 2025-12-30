@@ -8,10 +8,11 @@ export const DEPLOYER_PRIVATE_KEY = ensureHexPrefix(
 );
 export const SIGNER_ONE_ADDRESS = ensureHexPrefix(
   requireEnv("SIGNER_ONE_ADDRESS"),
-); // hardware wallet hence private key is not needed
-export const SIGNER_TWO_PRIVATE_KEY = ensureHexPrefix(
-  requireEnv("SIGNER_TWO_PRIVATE_KEY"),
 );
+// hardware wallet hence private key is not needed
+// export const SIGNER_TWO_PRIVATE_KEY = ensureHexPrefix(
+//   requireEnv("SIGNER_TWO_PRIVATE_KEY"),
+// );
 export const PERMISSION_ADDRESS = ensureHexPrefix(
   requireEnv("PERMISSION_ADDRESS"),
 );

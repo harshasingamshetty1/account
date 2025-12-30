@@ -68,8 +68,61 @@ export function extractDigest(
   return null;
 }
 
-export function signDigest(message: string): string {
-  const signatureOutput = execSync(`cast wallet sign --ledger ${message}`, {
+export enum SignerType {
+  EOA = "eoa",
+  HARDWARE = "hardware",
+}
+
+function getPrivateKey(): string {
+  const privateKey = process.env.SIGNER_PRIVATE_KEY?.trim();
+  if (!privateKey || privateKey === "") {
+    throw new Error("SIGNER_PRIVATE_KEY not set or empty");
+  }
+  if (!privateKey.startsWith("0x")) {
+    throw new Error("SIGNER_PRIVATE_KEY must start with 0x prefix");
+  }
+  return privateKey;
+}
+
+export function getSignerType(): SignerType {
+  const type = process.env.SIGNER_TYPE?.toLowerCase();
+  const hasKey = !!process.env.SIGNER_PRIVATE_KEY?.trim();
+
+  if (type === "eoa") {
+    if (!hasKey) {
+      throw new Error("SIGNER_TYPE=eoa requires SIGNER_PRIVATE_KEY");
+    }
+    return SignerType.EOA;
+  }
+
+  if (type === "hardware") {
+    return SignerType.HARDWARE;
+  }
+
+  return hasKey ? SignerType.EOA : SignerType.HARDWARE;
+}
+
+function signWithEOA(digest: string): string {
+  const privateKey = getPrivateKey();
+  const signatureOutput = execSync(
+    `cast wallet sign --private-key ${privateKey} ${digest}`,
+    {
+      encoding: "utf-8",
+      stdio: "pipe",
+    },
+  )
+    .toString()
+    .trim();
+
+  if (!signatureOutput.startsWith("0x")) {
+    throw new Error("EOA signing did not return a valid signature");
+  }
+
+  return signatureOutput;
+}
+
+function signWithLedger(digest: string): string {
+  const signatureOutput = execSync(`cast wallet sign --ledger ${digest}`, {
     encoding: "utf-8",
     stdio: "pipe",
   })
@@ -83,6 +136,12 @@ export function signDigest(message: string): string {
   return signatureOutput;
 }
 
+function signDigest(digest: string, signerType: SignerType): string {
+  return signerType === SignerType.EOA
+    ? signWithEOA(digest)
+    : signWithLedger(digest);
+}
+
 export function ensureSignature(
   key: string,
   digest: string,
@@ -92,9 +151,13 @@ export function ensureSignature(
   if (process.env[key]) {
     return process.env[key]!;
   }
-  const signature = signDigest(digest);
+
+  const signerType = getSignerType();
+  const signature = signDigest(digest, signerType);
   process.env[key] = signature;
-  console.log(`[${context}] ${label} signature captured.`);
+  console.log(
+    `[${context}] ${label} signature captured (${signerType.toUpperCase()})`,
+  );
   return signature;
 }
 
@@ -161,9 +224,9 @@ export function executeWithSignature(
   options: ExecuteWithSignatureOptions,
 ): void {
   const signatureKey = options.signatureKey || "SIGNATURE";
-
-  // Signature should already be collected before calling this
+     // Signature should already be collected before calling this
   const signature = process.env[signatureKey];
+
   if (!signature) {
     throw new Error(
       `[${options.context}] ${options.digestLabel} signature missing`,
@@ -178,12 +241,10 @@ export function executeWithSignature(
       broadcast: true,
     });
 
-    delete process.env[signatureKey];
     if (options.successMessage) {
       console.log(`[${options.context}] ${options.successMessage}`);
     }
-  } catch (error) {
+  } finally {
     delete process.env[signatureKey];
-    throw error;
   }
 }

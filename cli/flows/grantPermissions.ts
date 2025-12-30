@@ -6,7 +6,7 @@ import {
   DEPLOYER_PRIVATE_KEY,
   PERMISSION_ADDRESS,
   SIGNER_ONE_ADDRESS,
-  SIGNER_TWO_PRIVATE_KEY,
+//   SIGNER_TWO_PRIVATE_KEY,
 } from "../config/config";
 
 export async function executeGrantPermissions(
@@ -29,7 +29,7 @@ export async function executeGrantPermissions(
     DEPLOYER_PRIVATE_KEY,
     {
       PERMISSION_ADDRESS,
-      SIGNER_TWO_PRIVATE_KEY,
+    //   SIGNER_TWO_PRIVATE_KEY,
       NATIVE_AMOUNT: nativeAmount,
     },
   );
