@@ -27,6 +27,8 @@ SIGNER_PRIVATE_KEY=0x (optional if not eoa)
 - **EOA**: Set `SIGNER_TYPE=eoa` and `SIGNER_PRIVATE_KEY=0x...` (requires private key)
 - **Hardware**: Set `SIGNER_TYPE=hardware` or leave unset (uses Ledger, no private key needed)
 
+**⚠️ Important:** `SIGNER_PRIVATE_KEY` must be the private key for `SIGNER_ONE_ADDRESS`, NOT `PERMISSION_ADDRESS`. Using the wrong private key will cause signature verification failures.
+
 ### 2. Update RPC URLs
 
 Edit `config.staging.json` and update the `rpcMapping`,`api_url` with your RPC URLs:
@@ -85,5 +87,6 @@ tsx setSpendLimit.ts arbitrum_sepolia 1000000000000000000
 ## Important Notes
 
 - **Chain names** must match the names in `deployed.json` or `config.json`
+- **SIGNER_PRIVATE_KEY** must correspond to `SIGNER_ONE_ADDRESS`, NOT `PERMISSION_ADDRESS`
 - All flow implementations are in the `flows/` directory
 - Chain name format:  `arbitrum_sepolia`, `base_sepolia`
