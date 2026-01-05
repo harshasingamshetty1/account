@@ -2,7 +2,7 @@ import { ChainConfig, DeployedContracts } from "../types";
 import { DIGEST_PATTERNS, SCRIPT_PATHS } from "../config/constants";
 import { buildBaseEnv, collectSignature, executeWithSignature } from "./common";
 import { DEPLOYER_PRIVATE_KEY, SIGNER_ONE_ADDRESS } from "../config/config";
-import { executeChangeCooldown } from "./changeCooldown";
+// import { executeChangeCooldown } from "./changeCooldown";
 
 export interface WhitelistOptions {
   recipient: string;
@@ -14,7 +14,7 @@ export async function executeWhitelist(
   options: WhitelistOptions,
 ): Promise<void> {
   console.log(`[${chain.name}] Changing cooldown period to 10 seconds...`);
-  await executeChangeCooldown(chain, deployed, { cooldownPeriod: "10" });
+  //   await executeChangeCooldown(chain, deployed, { cooldownPeriod: "10" });
 
   console.log(`[${chain.name}] Whitelisting address...`);
   const scriptPath = SCRIPT_PATHS.whitelist;
@@ -53,7 +53,7 @@ export async function executeWhitelist(
     successMessage: `Address whitelisted: ${options.recipient}`,
   });
 
-  console.log(
-    `[${chain.name}] Cooldown period is now 10 seconds. Wait 10 seconds before withdrawing.`,
-  );
+//   console.log(
+//     `[${chain.name}] Cooldown period is now 10 seconds. Wait 10 seconds before withdrawing.`,
+//   );
 }

@@ -9,6 +9,7 @@ export interface ChainConfig {
 
 export interface Config {
   chains: ChainConfig[];
+  whitelistAddress: string;
 }
 
 export interface DeployedContracts {

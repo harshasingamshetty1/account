@@ -224,7 +224,7 @@ export function executeWithSignature(
   options: ExecuteWithSignatureOptions,
 ): void {
   const signatureKey = options.signatureKey || "SIGNATURE";
-     // Signature should already be collected before calling this
+  // Signature should already be collected before calling this
   const signature = process.env[signatureKey];
 
   if (!signature) {

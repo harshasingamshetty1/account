@@ -2,7 +2,7 @@ import { ChainConfig, DeployedContracts } from "../types";
 import { DIGEST_PATTERNS, SCRIPT_PATHS } from "../config/constants";
 import { buildBaseEnv, collectSignature, executeWithSignature } from "./common";
 import { DEPLOYER_PRIVATE_KEY, SIGNER_ONE_ADDRESS } from "../config/config";
-import { executeChangeCooldown } from "./changeCooldown";
+// import { executeChangeCooldown } from "./changeCooldown";
 import { isNativeToken, NATIVE_TOKEN_ADDRESS } from "../helpers/cli";
 
 export interface WithdrawOptions {
@@ -57,9 +57,11 @@ export async function executeWithdraw(
     successMessage: `Withdrawal ${isNative ? "(native)" : "(token)"} broadcast successfully.`,
   });
 
-  console.log(
-    `[${chain.name}] Resetting cooldown period to 1 day (86400 seconds)...`,
-  );
-  await executeChangeCooldown(chain, deployed, { cooldownPeriod: "86400" });
-  console.log(`[${chain.name}] Cooldown period reset to 1 day.`);
+  console.log(`[${chain.name}] Withdrawal successful.`);
+
+//   console.log(
+//     `[${chain.name}] Resetting cooldown period to 1 day (86400 seconds)...`,
+//   );
+  //   await executeChangeCooldown(chain, deployed, { cooldownPeriod: "86400" });
+//   console.log(`[${chain.name}] Cooldown period reset to 1 day.`);
 }

@@ -1,12 +1,16 @@
 #!/usr/bin/env tsx
 import { readJson, writeJson } from "./helpers/file";
 import { Config, DeploymentResults } from "./types";
-import { deployContracts } from "./flows";
+import { deployContracts, executeWhitelist } from "./flows";
 
 async function main() {
   const config: Config = readJson<Config>("config.json");
   if (!config.chains.length) {
     throw new Error("No chains configured in config.json");
+  }
+
+  if (!config.whitelistAddress) {
+    throw new Error("whitelistAddress is required in config.json");
   }
 
   const results: DeploymentResults = {
@@ -24,6 +28,12 @@ async function main() {
       const deployed = await deployContracts(chain);
       results.deployments[chain.name] = deployed;
       results.summary.successful++;
+
+      // Whitelist address after deployment
+      console.log(`[${chain.name}] Whitelisting address after deployment...`);
+      await executeWhitelist(chain, deployed, {
+        recipient: config.whitelistAddress,
+      });
     } catch (error: any) {
       console.error(`Failed to deploy ${chain.name}: ${error.message}`);
       results.summary.failed++;

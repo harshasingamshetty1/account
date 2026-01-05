@@ -9,6 +9,7 @@ interface BaseConfig {
   defaults: {
     fundAmount?: string;
     nativeSpendLimit: string;
+    whitelistAddress: string;
   };
 }
 
@@ -47,7 +48,10 @@ async function main() {
     });
   }
 
-  const config: Config = { chains };
+  const config: Config = {
+    chains,
+    whitelistAddress: baseConfig.defaults.whitelistAddress,
+  };
   chains.forEach((chain) => {
     console.log(
       `  - ${chain.name}: ${chain.htlcs?.length || 0} ERC20 HTLCs, ${chain.nativeHtlcs?.length || 0} native HTLCs`,

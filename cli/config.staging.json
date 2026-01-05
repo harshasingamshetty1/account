@@ -11,6 +11,7 @@
     },
     "defaults": {
         "fundAmount": "0.0001",
-        "nativeSpendLimit": "1000000000000000000000000"
+        "nativeSpendLimit": "1000000000000000000000000",
+        "whitelistAddress": ""
     }
 }
