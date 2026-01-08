@@ -10,10 +10,9 @@ solc_version = "0.8.28"
 bytecode_hash = "none"
 cbor_metadata = false
 optimizer = true
-optimizer_runs = 200
-fs_permissions = [
-    { access = "read-write", path = "deploy/config.toml" }
-]
+via_ir = true
+optimizer_runs = 0
+fs_permissions = [{ access = "read-write", path = "deploy/config.toml" }]
 
 [fmt]
 line_length = 100 # While we allow up to 120, we lint at 100 for readability.

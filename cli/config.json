@@ -1,0 +1,11 @@
+{
+  "chains": [
+    {
+      "name": "arbitrum_sepolia",
+      "rpc": "https://arbitrum-sepolia-rpc.publicnode.com",
+      "htlcs": ["0x9648B9d01242F537301b98EC0Bf8b6854cDB97E6"],
+      "fundAmount": "0.001",
+      "useNativeToken": false
+    }
+  ]
+}

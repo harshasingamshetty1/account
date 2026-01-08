@@ -46,9 +46,7 @@ contract SolverMultisigSetupTest is BaseTest {
         vm.etch(solverAddress, abi.encodePacked(hex"ef0100", address(account)));
 
         solver = DelegatedEOA({
-            eoa: solverAddress,
-            privateKey: solverPrivateKey,
-            d: MockAccount(payable(solverAddress))
+            eoa: solverAddress, privateKey: solverPrivateKey, d: MockAccount(payable(solverAddress))
         });
 
         // Fund the solver with ETH and tokens
@@ -187,10 +185,11 @@ contract SolverMultisigSetupTest is BaseTest {
 
         // Execute the revoke via multisig
         // Note: Anyone can submit this transaction, the security is in the signature!
-        solver.d.execute(
-            _ERC7821_BATCH_EXECUTION_MODE,
-            abi.encode(calls, abi.encodePacked(nonce, multisigSignature))
-        );
+        solver.d
+            .execute(
+                _ERC7821_BATCH_EXECUTION_MODE,
+                abi.encode(calls, abi.encodePacked(nonce, multisigSignature))
+            );
 
         console.log("[OK] Multisig successfully called revoke()!");
 
@@ -234,9 +233,11 @@ contract SolverMultisigSetupTest is BaseTest {
         // This should REVERT because bot key is not super admin
         // and revoke() is a self-execute function
         vm.expectRevert();
-        solver.d.execute(
-            _ERC7821_BATCH_EXECUTION_MODE, abi.encode(calls, abi.encodePacked(nonce, botSignature))
-        );
+        solver.d
+            .execute(
+                _ERC7821_BATCH_EXECUTION_MODE,
+                abi.encode(calls, abi.encodePacked(nonce, botSignature))
+            );
 
         console.log("[OK] Regular key correctly blocked from calling revoke()");
     }
@@ -273,10 +274,11 @@ contract SolverMultisigSetupTest is BaseTest {
             abi.encodePacked(abi.encode(innerSignatures), multisigKeyHash, uint8(0));
 
         // Execute via multisig
-        solver.d.execute(
-            _ERC7821_BATCH_EXECUTION_MODE,
-            abi.encode(calls, abi.encodePacked(nonce, multisigSignature))
-        );
+        solver.d
+            .execute(
+                _ERC7821_BATCH_EXECUTION_MODE,
+                abi.encode(calls, abi.encodePacked(nonce, multisigSignature))
+            );
 
         // Verify the new key was authorized
         bytes32 expectedKeyHash = _hash(newKey.k);
@@ -323,11 +325,12 @@ contract SolverMultisigSetupTest is BaseTest {
         console.log("[OK] Permissions set: restricted key can call targetFunction on test contract");
 
         // Verify the permission was set correctly
-        bool canExecute = solver.d.canExecute(
-            restrictedKeyHash,
-            allowedContract,
-            abi.encodeWithSelector(allowedFunctionSelector, "test")
-        );
+        bool canExecute = solver.d
+            .canExecute(
+                restrictedKeyHash,
+                allowedContract,
+                abi.encodeWithSelector(allowedFunctionSelector, "test")
+            );
         assertTrue(canExecute, "Restricted key should be able to execute allowed function");
 
         // Test 1: Verify the restricted key CAN call the allowed function
@@ -413,9 +416,10 @@ contract SolverMultisigSetupTest is BaseTest {
         bytes32 digest = solver.d.computeDigest(calls, nonce);
         bytes memory signature = abi.encodePacked(_sig(key, digest), keyHash, uint8(0));
 
-        solver.d.execute(
-            _ERC7821_BATCH_EXECUTION_MODE, abi.encode(calls, abi.encodePacked(nonce, signature))
-        );
+        solver.d
+            .execute(
+                _ERC7821_BATCH_EXECUTION_MODE, abi.encode(calls, abi.encodePacked(nonce, signature))
+            );
     }
 
     /// @notice Helper to test that an unauthorized call reverts
@@ -435,9 +439,10 @@ contract SolverMultisigSetupTest is BaseTest {
         vm.expectRevert(
             abi.encodeWithSelector(GuardedExecutor.UnauthorizedCall.selector, keyHash, target, data)
         );
-        solver.d.execute(
-            _ERC7821_BATCH_EXECUTION_MODE, abi.encode(calls, abi.encodePacked(nonce, signature))
-        );
+        solver.d
+            .execute(
+                _ERC7821_BATCH_EXECUTION_MODE, abi.encode(calls, abi.encodePacked(nonce, signature))
+            );
     }
 
     /// @notice Helper to set up multisig (for reuse in tests)
